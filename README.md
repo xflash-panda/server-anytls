@@ -10,16 +10,27 @@
 - 流量统计
 - 支持 TLS 加密
 - 支持多种日志级别
+- 支持自动证书管理
 
-## 安装
+## 快速开始
 
 ```bash
+# 安装
 go install github.com/xflash-panda/server-anytls/cmd/server@latest
+
+# 运行（使用环境变量）
+export X_PANDA_ANYTLS_API="https://your-api-server"
+export X_PANDA_ANYTLS_TOKEN="your-token"
+export X_PANDA_ANYTLS_NODE="your-node-id"
+anytls-node
+
+# 或者使用命令行参数
+anytls-node --api="https://your-api-server" --token="your-token" --node="your-node-id"
 ```
 
 ## 配置
 
-服务器支持以下环境变量配置：
+### 环境变量
 
 | 环境变量 | 说明 | 默认值 |
 |---------|------|--------|
@@ -30,7 +41,7 @@ go install github.com/xflash-panda/server-anytls/cmd/server@latest
 | X_PANDA_ANYTLS_KEY_FILE | 密钥文件路径 | /root/.cert/server.key |
 | X_PANDA_ANYTLS_LOG_LEVEL | 日志级别 | error |
 
-## 命令行参数
+### 命令行参数
 
 ```bash
 anytls-node --help
@@ -62,6 +73,10 @@ go mod download
 go build -o anytls-node cmd/server/main.go
 ```
 
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
 ## 许可证
 
-Copyright © 2021 XFLASH-PANDA
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
