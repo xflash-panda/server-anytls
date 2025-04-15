@@ -17,7 +17,7 @@ import (
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.0.1"
+	Version   = "0.0.2"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -174,13 +174,29 @@ func main() {
 			}
 
 			log.Infoln("Starting server...")
-			srv.Run()
-			defer srv.Stop()
+
+			// 创建一个用于等待服务器关闭的通道
+			serverDone := make(chan error, 1)
+			go func() {
+				serverDone <- srv.Run()
+			}()
+
+			// 等待信号
 			quit := make(chan os.Signal, 1)
 			signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-			<-quit
-			log.Info("Shutting down server...")
+			select {
+			case <-quit:
+				log.Info("Shutting down server...")
+				if err := srv.Stop(); err != nil {
+					log.WithError(err).Error("Error stopping server")
+				}
+			case err := <-serverDone:
+				if err != nil {
+					log.WithError(err).Error("Server stopped with error")
+					return err
+				}
+			}
 
 			return nil
 		},

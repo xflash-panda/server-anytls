@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -95,6 +93,21 @@ func (s *UsersService) Auth(uuidBytes []byte) bool {
 	return s.userManager.auth(uuidBytes)
 }
 
+func (s *UsersService) GetUserId(uuidBytes []byte) (int, bool) {
+	return s.userManager.GetUserId(uuidBytes)
+}
+
+func (s *UsersService) UpdateTraffic(userId int, up, down uint64) {
+	if trafficItem := s.GetTrafficItem(userId); trafficItem != nil {
+		if up > 0 {
+			trafficItem.Up.Add(up)
+		}
+		if down > 0 {
+			trafficItem.Down.Add(down)
+		}
+	}
+}
+
 func (s *UsersService) FetchUsersTask() error {
 	s.updateMutex.Lock()
 	defer s.updateMutex.Unlock()
@@ -144,7 +157,6 @@ func (s *UsersService) ReportTrafficsTask() error {
 }
 
 func (s *UsersService) compareUserList(newUsers *[]api.User) (deleted, added []api.User) {
-
 	oldMap := make(map[string]api.User)
 	newMap := make(map[string]api.User)
 
@@ -170,11 +182,11 @@ func (s *UsersService) compareUserList(newUsers *[]api.User) (deleted, added []a
 	return deleted, added
 }
 
-func (s *UsersService) GetTrafficItem(id string) *TrafficItem {
-	item := s.trafficManager.load(id)
+func (s *UsersService) GetTrafficItem(userId int) *TrafficItem {
+	item := s.trafficManager.load(userId)
 	if item == nil {
 		newItem := newTrafficItem()
-		s.trafficManager.set(id, newItem)
+		s.trafficManager.set(userId, newItem)
 		return newItem
 	}
 	return item
@@ -188,10 +200,19 @@ func newUserManager() *UserManager {
 	return &UserManager{store: sync.Map{}}
 }
 
+func (um *UserManager) GetUserId(uuidBytes []byte) (int, bool) {
+	if data, ok := um.store.Load(string(uuidBytes)); ok {
+		if user, ok := data.(*api.User); ok {
+			return user.ID, true
+		}
+	}
+	return 0, false
+}
+
 func (um *UserManager) addUsers(users []api.User) {
 	for _, user := range users {
 		key := sha256.Sum256([]byte(user.UUID))
-		um.store.Store(string(key[:]), strconv.Itoa(user.ID))
+		um.store.Store(string(key[:]), &user)
 		log.Debugf("add user uuid %s, id %d", user.UUID, user.ID)
 	}
 }
@@ -225,23 +246,14 @@ type TrafficManager struct {
 func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
 	userTraffics := make([]*api.UserTraffic, 0)
 	tm.store.Range(func(key, value any) bool {
-		var strKey, ok = key.(string)
+		var userId, ok = key.(int)
 		if !ok {
 			return false
 		}
-		parts := strings.Split(strKey, "-")
-		var userId string
-		if len(parts) > 0 {
-			userId = parts[0]
-		} else {
-			return false
-		}
-
-		userIdInt, _ := strconv.Atoi(userId)
 		trafficItem := value.(*TrafficItem)
 		if trafficItem.Up.Value() > 0 || trafficItem.Down.Value() > 0 || trafficItem.Count.Value() > 0 {
 			userTraffics = append(userTraffics, &api.UserTraffic{
-				UID:      userIdInt,
+				UID:      userId,
 				Upload:   trafficItem.Up.Value(),
 				Download: trafficItem.Down.Value(),
 				Count:    trafficItem.Count.Value(),
@@ -252,16 +264,16 @@ func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
 	return userTraffics
 }
 
-func (tm *TrafficManager) load(id string) *TrafficItem {
-	if item, ok := tm.store.Load(id); !ok {
+func (tm *TrafficManager) load(userId int) *TrafficItem {
+	if item, ok := tm.store.Load(userId); !ok {
 		return nil
 	} else {
 		return item.(*TrafficItem)
 	}
 }
 
-func (tm *TrafficManager) set(id string, item *TrafficItem) {
-	tm.store.Store(id, item)
+func (tm *TrafficManager) set(userId int, item *TrafficItem) {
+	tm.store.Store(userId, item)
 }
 
 func (tm *TrafficManager) forRange(f func(key, value any) bool) {

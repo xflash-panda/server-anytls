@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
@@ -18,6 +20,11 @@ type Server struct {
 	anyTLSConfig *api.AnyTLSConfig
 	listener     net.Listener
 	userService  *service.UsersService
+
+	// 服务器状态
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config) error {
@@ -43,11 +50,16 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 	if err := validateConfig(nodeConfig, userService, tlsConfig); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
 		tlsConfig:    tlsConfig,
 		userService:  userService,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
+
 	if s.anyTLSConfig.AllowInsecure == 1 {
 		s.tlsConfig.InsecureSkipVerify = true
 	}
@@ -55,11 +67,11 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 	return s, nil
 }
 
-func (s *Server) Run() {
+func (s *Server) Run() error {
 	addr := fmt.Sprintf(":%d", s.anyTLSConfig.ServerPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		logrus.Fatalln("listen:", err)
+		return fmt.Errorf("failed to listen: %w", err)
 	}
 	s.listener = listener
 
@@ -69,7 +81,6 @@ func (s *Server) Run() {
 	}).Info("Server listening on TCP")
 
 	if len(s.anyTLSConfig.PaddingRules) > 0 {
-
 		paddingRules := []byte(s.anyTLSConfig.PaddingRules)
 		if padding.UpdatePaddingScheme(paddingRules) {
 			logrus.Infoln("loaded padding scheme: ", s.anyTLSConfig.PaddingRules)
@@ -77,27 +88,62 @@ func (s *Server) Run() {
 			logrus.Errorln("failed to load padding scheme: ", s.anyTLSConfig.PaddingRules)
 		}
 	}
-	logrus.Infoln("start user service")
-	s.userService.Start()
 
-	ctx := context.Background()
-	logrus.Infoln("start accept connections")
+	if err := s.userService.Start(); err != nil {
+		return fmt.Errorf("failed to start user service: %w", err)
+	}
+	logrus.Infoln("user service started")
+
+	logrus.Infoln("start accepting connections")
 	for {
-		c, err := listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
-			logrus.Fatalln("accept:", err)
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			logrus.WithError(err).Error("failed to accept connection")
+			continue
 		}
-		go handleTcpConnection(ctx, c, s)
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			handleTcpConnection(s.ctx, conn, s)
+		}()
 	}
 }
 
 func (s *Server) Stop() error {
+	// 取消上下文
+	s.cancel()
+
+	// 关闭监听器
 	if s.listener != nil {
 		if err := s.listener.Close(); err != nil {
 			return fmt.Errorf("failed to close listener: %w", err)
 		}
-		logrus.Info("Server stopped")
 	}
-	s.userService.Close()
+
+	// 等待所有连接处理完成
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+
+	// 设置超时
+	select {
+	case <-done:
+		logrus.Info("all connections closed")
+	case <-time.After(30 * time.Second):
+		logrus.Warn("timeout waiting for connections to close")
+	}
+
+	// 关闭用户服务
+	if err := s.userService.Close(); err != nil {
+		return fmt.Errorf("failed to close user service: %w", err)
+	}
+
+	logrus.Info("server stopped")
 	return nil
 }
