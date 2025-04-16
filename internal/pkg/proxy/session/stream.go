@@ -11,113 +11,113 @@ import (
 )
 
 type Stream struct {
-	id uint32 
+	id uint32
 
-	sess *Session 
+	sess *Session
 
-	pipeR         *pipe.PipeReader  
-	pipeW         *pipe.PipeWriter  
-	writeDeadline pipe.PipeDeadline 
+	pipeR         *pipe.PipeReader
+	pipeW         *pipe.PipeWriter
+	writeDeadline pipe.PipeDeadline
 
-	dieOnce sync.Once 
-	dieHook func()    
-	dieErr  error     
+	dieOnce sync.Once
+	dieHook func()
+	dieErr  error
 
-	reportOnce sync.Once 
+	reportOnce sync.Once
 }
 
 func newStream(id uint32, sess *Session) *Stream {
-	
+
 	s := new(Stream)
-	
+
 	s.id = id
-	
+
 	s.sess = sess
-	
+
 	s.pipeR, s.pipeW = pipe.Pipe()
-	
+
 	s.writeDeadline = pipe.MakePipeDeadline()
-	
+
 	return s
 }
 
 func (s *Stream) Read(b []byte) (n int, err error) {
-	
+
 	n, err = s.pipeR.Read(b)
-	
+
 	if n == 0 && s.dieErr != nil {
-		
+
 		err = s.dieErr
 	}
-	
+
 	return
 }
 
 func (s *Stream) Write(b []byte) (n int, err error) {
-	
+
 	select {
-	
+
 	case <-s.writeDeadline.Wait():
 		return 0, os.ErrDeadlineExceeded
 	default:
 	}
 	f := newFrame(cmdPSH, s.id)
 	f.data = b
-	
+
 	n, err = s.sess.writeFrame(f)
-	
+
 	return
 }
 
 func (s *Stream) Close() error {
-	
+
 	return s.CloseWithError(io.ErrClosedPipe)
 }
 
 func (s *Stream) CloseWithError(err error) error {
-	
+
 	var once bool
-	
+
 	s.dieOnce.Do(func() {
-		
+
 		s.dieErr = err
-		
+
 		s.pipeR.Close()
-		
+
 		once = true
 	})
-	
+
 	if once {
-		
+
 		if s.dieHook != nil {
-			
+
 			s.dieHook()
-			
+
 		}
-		
+
 		return s.sess.streamClosed(s.id)
 	} else {
-		
+
 		return s.dieErr
 	}
 }
 
 func (s *Stream) SetReadDeadline(t time.Time) error {
-	
+
 	return s.pipeR.SetReadDeadline(t)
 }
 
 func (s *Stream) SetWriteDeadline(t time.Time) error {
-	
+
 	s.writeDeadline.Set(t)
-	
+
 	return nil
 }
 
 func (s *Stream) SetDeadline(t time.Time) error {
-	
+
 	s.SetWriteDeadline(t)
-	
+
 	return s.SetReadDeadline(t)
 }
 
@@ -127,7 +127,7 @@ func (s *Stream) LocalAddr() net.Addr {
 	}); ok {
 		return ts.LocalAddr()
 	}
-	
+
 	return nil
 }
 
@@ -145,9 +145,9 @@ func (s *Stream) HandshakeFailure(err error) error {
 	s.reportOnce.Do(func() {
 		once = true
 	})
-	
+
 	if once && err != nil && s.sess.peerVersion >= 2 {
-		
+
 		f := newFrame(cmdSYNACK, s.id)
 		f.data = []byte(err.Error())
 		if _, err := s.sess.writeFrame(f); err != nil {
@@ -162,13 +162,17 @@ func (s *Stream) HandshakeSuccess() error {
 	s.reportOnce.Do(func() {
 		once = true
 	})
-	
+
 	if once && s.sess.peerVersion >= 2 {
-		
+
 		if _, err := s.sess.writeFrame(newFrame(cmdSYNACK, s.id)); err != nil {
-			
+
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Stream) GetConn() net.Conn {
+	return s.sess.conn
 }

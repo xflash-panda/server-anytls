@@ -106,9 +106,10 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 
 	// 包装连接以统计流量
 	countedConn := &CountedConn{
-		Conn:   c,
-		userId: userId,
-		ctx:    ctx,
+		Conn:          c,
+		userId:        userId,
+		ctx:           ctx,
+		passwordBytes: passwordBytes,
 	}
 
 	// 创建会话
@@ -122,6 +123,15 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			}
 		}()
 		defer stream.Close()
+
+		// 通过 stream.GetConn() 获取 CountedConn
+		if cc, ok := stream.GetConn().(*CountedConn); ok {
+			// 使用保存的密码进行验证
+			if !s.userService.Auth(cc.passwordBytes) {
+				logrus.Debug("user authentication failed in new stream")
+				return
+			}
+		}
 
 		// 读取目标地址
 		destination, err := M.SocksaddrSerializer.ReadAddrPort(stream)
@@ -148,8 +158,9 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 // CountedConn 包装原始连接以统计流量
 type CountedConn struct {
 	net.Conn
-	userId int
-	ctx    context.Context
+	userId        int
+	ctx           context.Context
+	passwordBytes []byte
 }
 
 // Read 实现了 net.Conn 接口，统计下行流量
