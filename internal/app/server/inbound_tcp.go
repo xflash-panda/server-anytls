@@ -78,7 +78,6 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		return
 	}
 
-	// 大端读取转字符串，一共32个字节啊
 	paddingLenBytes, err := b.ReadBytes(2)
 	if err != nil {
 		logrus.WithError(err).Debug("failed to read padding length")
