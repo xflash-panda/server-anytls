@@ -51,39 +51,28 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			}).Error("[BUG] connection panic recovered")
 		}
 	}()
-
-	// 设置 TLS
 	c = tls.Server(c, s.tlsConfig)
 	defer c.Close()
-
-	// 读取初始数据
 	b := buf.NewPacket()
 	defer b.Release()
-
 	n, err := b.ReadOnceFrom(c)
 	if err != nil {
 		logrus.WithError(err).Debug("failed to read initial data")
 		return
 	}
-
 	c = bufio.NewCachedConn(c, b)
-
-	// 验证密码
 	passwordBytes, err := b.ReadBytes(32)
 	if err != nil || !s.userService.Auth(passwordBytes) {
 		logrus.Debug("authentication failed")
 		b.Resize(0, n)
 		return
 	}
-
-	// 读取填充长度
 	paddingLenBytes, err := b.ReadBytes(2)
 	if err != nil {
 		logrus.WithError(err).Debug("failed to read padding length")
 		b.Resize(0, n)
 		return
 	}
-
 	paddingLen := binary.BigEndian.Uint16(paddingLenBytes)
 	if paddingLen > 0 {
 		_, err = b.ReadBytes(int(paddingLen))
@@ -93,26 +82,18 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			return
 		}
 	}
-
-	// 获取用户ID
 	userId, ok := s.userService.GetUserId(passwordBytes)
 	if !ok {
 		logrus.Debug("failed to get user ID")
 		return
 	}
-
-	// 将 userService 注入到 Context 中
 	ctx = WithUserService(ctx, s.userService)
-
-	// 包装连接以统计流量
 	countedConn := &CountedConn{
 		Conn:          c,
 		userId:        userId,
 		ctx:           ctx,
 		passwordBytes: passwordBytes,
 	}
-
-	// 创建会话
 	session := session.NewServerSession(countedConn, func(stream *session.Stream) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -123,35 +104,24 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			}
 		}()
 		defer stream.Close()
-
-		// 通过 stream.GetConn() 获取 CountedConn
 		if cc, ok := stream.GetConn().(*CountedConn); ok {
-			// 使用保存的密码进行验证
 			if !s.userService.Auth(cc.passwordBytes) {
 				logrus.Debug("user authentication failed in new stream")
 				return
 			}
 		}
-
-		// 读取目标地址
 		destination, err := M.SocksaddrSerializer.ReadAddrPort(stream)
 		if err != nil {
 			logrus.WithError(err).Debug("failed to read destination address")
 			return
 		}
-
-		// 根据目标地址选择代理方式
 		if strings.Contains(destination.String(), "udp-over-tcp.arpa") {
 			proxyOutboundUoT(ctx, stream, destination)
 		} else {
 			proxyOutboundTCP(ctx, stream, destination)
 		}
 	}, &padding.DefaultPaddingFactory)
-
-	// 初始连接数据的上行流量统计
 	s.userService.UpdateTraffic(userId, uint64(n), 0)
-
-	// 运行会话
 	session.Run()
 }
 

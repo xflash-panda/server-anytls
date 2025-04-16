@@ -37,12 +37,10 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	if tlsConfig == nil {
 		return errors.New("tlsConfig is nil")
 	}
-
 	anyTLSConfig := nodeConfig.(*api.AnyTLSConfig)
 	if anyTLSConfig.ServerPort <= 0 || anyTLSConfig.ServerPort > 65535 {
 		return fmt.Errorf("invalid server port: %d", anyTLSConfig.ServerPort)
 	}
-
 	return nil
 }
 
@@ -50,7 +48,6 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 	if err := validateConfig(nodeConfig, userService, tlsConfig); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
@@ -59,11 +56,9 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 		ctx:          ctx,
 		cancel:       cancel,
 	}
-
 	if s.anyTLSConfig.AllowInsecure == 1 {
 		s.tlsConfig.InsecureSkipVerify = true
 	}
-
 	return s, nil
 }
 
@@ -74,12 +69,10 @@ func (s *Server) Run() error {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
 	s.listener = listener
-
 	logrus.WithFields(logrus.Fields{
 		"port": s.anyTLSConfig.ServerPort,
 		"addr": addr,
 	}).Info("Server listening on TCP")
-
 	if len(s.anyTLSConfig.PaddingRules) > 0 {
 		paddingRules := []byte(s.anyTLSConfig.PaddingRules)
 		if padding.UpdatePaddingScheme(paddingRules) {
@@ -88,12 +81,10 @@ func (s *Server) Run() error {
 			logrus.Errorln("failed to load padding scheme: ", s.anyTLSConfig.PaddingRules)
 		}
 	}
-
 	if err := s.userService.Start(); err != nil {
 		return fmt.Errorf("failed to start user service: %w", err)
 	}
 	logrus.Infoln("user service started")
-
 	logrus.Infoln("start accepting connections")
 	for {
 		conn, err := listener.Accept()
@@ -104,7 +95,6 @@ func (s *Server) Run() error {
 			logrus.WithError(err).Error("failed to accept connection")
 			continue
 		}
-
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -114,36 +104,26 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) Stop() error {
-	// 取消上下文
 	s.cancel()
-
-	// 关闭监听器
 	if s.listener != nil {
 		if err := s.listener.Close(); err != nil {
 			return fmt.Errorf("failed to close listener: %w", err)
 		}
 	}
-
-	// 等待所有连接处理完成
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()
 		close(done)
 	}()
-
-	// 设置超时
 	select {
 	case <-done:
 		logrus.Info("all connections closed")
 	case <-time.After(30 * time.Second):
 		logrus.Warn("timeout waiting for connections to close")
 	}
-
-	// 关闭用户服务
 	if err := s.userService.Close(); err != nil {
 		return fmt.Errorf("failed to close user service: %w", err)
 	}
-
 	logrus.Info("server stopped")
 	return nil
 }

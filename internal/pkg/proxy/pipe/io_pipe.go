@@ -1,4 +1,3 @@
-
 package pipe
 
 import (
@@ -9,8 +8,8 @@ import (
 )
 
 type onceError struct {
-	sync.Mutex 
-	err        error
+	sync.Mutex
+	err error
 }
 
 func (a *onceError) Store(err error) {
@@ -29,94 +28,68 @@ func (a *onceError) Load() error {
 }
 
 type pipe struct {
-	wrMu sync.Mutex  
-	wrCh chan []byte 
-	rdCh chan int    
+	wrMu sync.Mutex
+	wrCh chan []byte
+	rdCh chan int
 
-	once sync.Once 
-	
+	once sync.Once
+
 	done chan struct{}
-	
+
 	rerr onceError
-	
+
 	werr onceError
-	
+
 	readDeadline PipeDeadline
-	
+
 	writeDeadline PipeDeadline
 }
 
 func (p *pipe) read(b []byte) (n int, err error) {
-	
 	select {
-	
 	case <-p.done:
 		return 0, p.readCloseError()
-	
 	case <-p.readDeadline.Wait():
 		return 0, os.ErrDeadlineExceeded
-	
 	default:
 	}
-	
 	select {
-	
 	case bw := <-p.wrCh:
-		
 		nr := copy(b, bw)
-		
 		p.rdCh <- nr
 		return nr, nil
-	
 	case <-p.done:
 		return 0, p.readCloseError()
-	
 	case <-p.readDeadline.Wait():
 		return 0, os.ErrDeadlineExceeded
 	}
 }
 
 func (p *pipe) closeRead(err error) error {
-	
 	if err == nil {
 		err = io.ErrClosedPipe
 	}
-	
 	p.rerr.Store(err)
-	
 	p.once.Do(func() { close(p.done) })
 	return nil
 }
 
 func (p *pipe) write(b []byte) (n int, err error) {
-	
 	select {
-	
 	case <-p.done:
 		return 0, p.writeCloseError()
-	
 	case <-p.writeDeadline.Wait():
 		return 0, os.ErrDeadlineExceeded
-	
 	default:
-		
 		p.wrMu.Lock()
-		
 		defer p.wrMu.Unlock()
 	}
-	
 	for once := true; once || len(b) > 0; once = false {
-		
 		select {
-		
 		case p.wrCh <- b:
-			
 			nw := <-p.rdCh
-			
 			b = b[nw:]
-			
 			n += nw
-		
 		case <-p.done:
 			return n, p.writeCloseError()
 		case <-p.writeDeadline.Wait():
