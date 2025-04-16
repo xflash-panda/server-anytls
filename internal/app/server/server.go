@@ -70,7 +70,6 @@ func (s *Server) Run() error {
 	}
 	s.listener = listener
 	logrus.WithFields(logrus.Fields{
-		"port": s.anyTLSConfig.ServerPort,
 		"addr": addr,
 	}).Info("Server listening on TCP")
 	if len(s.anyTLSConfig.PaddingRules) > 0 {

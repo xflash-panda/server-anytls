@@ -67,6 +67,8 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		b.Resize(0, n)
 		return
 	}
+
+	// 大端读取转字符串，一共32个字节啊
 	paddingLenBytes, err := b.ReadBytes(2)
 	if err != nil {
 		logrus.WithError(err).Debug("failed to read padding length")
@@ -87,12 +89,12 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		logrus.Debug("failed to get user ID")
 		return
 	}
+	// logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
 	ctx = WithUserService(ctx, s.userService)
 	countedConn := &CountedConn{
-		Conn:          c,
-		userId:        userId,
-		ctx:           ctx,
-		passwordBytes: passwordBytes,
+		Conn:   c,
+		userId: userId,
+		ctx:    ctx,
 	}
 	session := session.NewServerSession(countedConn, func(stream *session.Stream) {
 		defer func() {
@@ -104,12 +106,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			}
 		}()
 		defer stream.Close()
-		if cc, ok := stream.GetConn().(*CountedConn); ok {
-			if !s.userService.Auth(cc.passwordBytes) {
-				logrus.Debug("user authentication failed in new stream")
-				return
-			}
-		}
+
 		destination, err := M.SocksaddrSerializer.ReadAddrPort(stream)
 		if err != nil {
 			logrus.WithError(err).Debug("failed to read destination address")

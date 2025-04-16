@@ -15,10 +15,8 @@ import (
 )
 
 func proxyOutboundTCP(ctx context.Context, conn net.Conn, destination M.Socksaddr) error {
-
 	c, err := proxy.SystemDialer.DialContext(ctx, "tcp", destination.String())
 	if err != nil {
-		logrus.Debugln("proxyOutboundTCP DialContext:", err)
 		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
 		return err
 	}

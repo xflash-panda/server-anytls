@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"sync"
 	"time"
@@ -201,7 +202,7 @@ func newUserManager() *UserManager {
 }
 
 func (um *UserManager) GetUserId(uuidBytes []byte) (int, bool) {
-	if data, ok := um.store.Load(string(uuidBytes)); ok {
+	if data, ok := um.store.Load(hex.EncodeToString(uuidBytes)); ok {
 		if user, ok := data.(*api.User); ok {
 			return user.ID, true
 		}
@@ -212,7 +213,7 @@ func (um *UserManager) GetUserId(uuidBytes []byte) (int, bool) {
 func (um *UserManager) addUsers(users []api.User) {
 	for _, user := range users {
 		key := sha256.Sum256([]byte(user.UUID))
-		um.store.Store(string(key[:]), &user)
+		um.store.Store(hex.EncodeToString(key[:]), &user)
 		log.Debugf("add user uuid %s, id %d", user.UUID, user.ID)
 	}
 }
@@ -220,7 +221,7 @@ func (um *UserManager) addUsers(users []api.User) {
 func (um *UserManager) deleteUsers(users []api.User) {
 	for _, user := range users {
 		key := sha256.Sum256([]byte(user.UUID))
-		um.store.Delete(string(key[:]))
+		um.store.Delete(hex.EncodeToString(key[:]))
 		log.Debugf("delete user uuid %s, id %d", user.UUID, user.ID)
 	}
 }
@@ -235,7 +236,7 @@ func (um *UserManager) countUsers() int {
 }
 
 func (um *UserManager) auth(uuidBytes []byte) bool {
-	_, ok := um.store.Load(string(uuidBytes))
+	_, ok := um.store.Load(hex.EncodeToString(uuidBytes))
 	return ok
 }
 
