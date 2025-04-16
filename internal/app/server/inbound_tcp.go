@@ -63,8 +63,16 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 	}
 	c = bufio.NewCachedConn(c, b)
 	passwordBytes, err := b.ReadBytes(32)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"remote_addr": c.RemoteAddr().String(),
+			"error":       err,
+		}).Error("failed to read password")
+		b.Resize(0, n)
+		return
+	}
 	passwordHexString := hex.EncodeToString(passwordBytes)
-	if err != nil || !s.userService.Auth(passwordHexString) {
+	if !s.userService.Auth(passwordHexString) {
 		logrus.Debug("authentication failed")
 		b.Resize(0, n)
 		return
