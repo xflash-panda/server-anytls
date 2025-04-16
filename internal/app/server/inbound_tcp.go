@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"encoding/hex"
 	"net"
 	"runtime/debug"
 	"strings"
@@ -62,7 +63,8 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 	}
 	c = bufio.NewCachedConn(c, b)
 	passwordBytes, err := b.ReadBytes(32)
-	if err != nil || !s.userService.Auth(passwordBytes) {
+	passwordHexString := hex.EncodeToString(passwordBytes)
+	if err != nil || !s.userService.Auth(passwordHexString) {
 		logrus.Debug("authentication failed")
 		b.Resize(0, n)
 		return

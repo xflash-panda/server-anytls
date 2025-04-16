@@ -90,8 +90,8 @@ func (s *UsersService) Close() error {
 	return nil
 }
 
-func (s *UsersService) Auth(uuidBytes []byte) bool {
-	return s.userManager.auth(uuidBytes)
+func (s *UsersService) Auth(hexString string) bool {
+	return s.userManager.auth(hexString)
 }
 
 func (s *UsersService) GetUserId(uuidBytes []byte) (int, bool) {
@@ -235,8 +235,8 @@ func (um *UserManager) countUsers() int {
 	return length
 }
 
-func (um *UserManager) auth(uuidBytes []byte) bool {
-	_, ok := um.store.Load(hex.EncodeToString(uuidBytes))
+func (um *UserManager) auth(hexString string) bool {
+	_, ok := um.store.Load(hexString)
 	return ok
 }
 
