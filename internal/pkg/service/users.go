@@ -98,13 +98,16 @@ func (s *UsersService) GetUserId(uuidBytes []byte) (int, bool) {
 	return s.userManager.GetUserId(uuidBytes)
 }
 
-func (s *UsersService) UpdateTraffic(userId int, up, down uint64) {
+func (s *UsersService) UpdateTraffic(userId int, up, down, count uint64) {
 	if trafficItem := s.GetTrafficItem(userId); trafficItem != nil {
 		if up > 0 {
 			trafficItem.Up.Add(up)
 		}
 		if down > 0 {
 			trafficItem.Down.Add(down)
+		}
+		if count > 0 {
+			trafficItem.Count.Add(count)
 		}
 	}
 }
