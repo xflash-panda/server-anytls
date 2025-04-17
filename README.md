@@ -22,6 +22,9 @@ go install github.com/xflash-panda/server-anytls/cmd/server@latest
 export X_PANDA_ANYTLS_API="https://your-api-server"
 export X_PANDA_ANYTLS_TOKEN="your-token"
 export X_PANDA_ANYTLS_NODE="your-node-id"
+export X_PANDA_ANYTLS_LOG_LEVEL="debug"  # 可选：debug/info/error
+export X_PANDA_ANYTLS_FETCH_USER_INTERVAL="60"  # 可选，默认 60 秒
+export X_PANDA_ANYTLS_REPORT_TRAFFICS_INTERVAL="80"  # 可选，默认 80 秒
 anytls-node
 
 # 或者使用命令行参数
@@ -39,7 +42,9 @@ anytls-node --api="https://your-api-server" --token="your-token" --node="your-no
 | X_PANDA_ANYTLS_NODE | 节点 ID | - |
 | X_PANDA_ANYTLS_CERT_FILE | 证书文件路径 | /root/.cert/server.crt |
 | X_PANDA_ANYTLS_KEY_FILE | 密钥文件路径 | /root/.cert/server.key |
-| X_PANDA_ANYTLS_LOG_LEVEL | 日志级别 | error |
+| X_PANDA_ANYTLS_LOG_LEVEL | 日志级别 (debug/info/error) | error |
+| X_PANDA_ANYTLS_FETCH_USER_INTERVAL | 获取用户列表间隔（秒） | 60 |
+| X_PANDA_ANYTLS_REPORT_TRAFFICS_INTERVAL | 上报流量间隔（秒） | 80 |
 
 ### 命令行参数
 
