@@ -127,6 +127,9 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			return
 		}
 
+		// 更新流量请求次数
+		s.userService.UpdateTraffic(userId, 0, 0, 1)
+
 		destination, err := M.SocksaddrSerializer.ReadAddrPort(stream)
 		if err != nil {
 			logrus.WithError(err).Debug("failed to read destination address")
@@ -138,7 +141,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			proxyOutboundTCP(ctx, stream, destination)
 		}
 	}, &padding.DefaultPaddingFactory)
-	s.userService.UpdateTraffic(userId, uint64(n), 0, 1)
+	s.userService.UpdateTraffic(userId, uint64(n), 0, 0)
 	session.Run()
 }
 
