@@ -15,4 +15,10 @@ type Config struct {
 	NodeID                int
 	FetchUserInterval     time.Duration
 	ReportTrafficInterval time.Duration
+	HeartBeatInterval     time.Duration
+}
+
+type RawResult struct {
+	Data []byte
+	Err  error
 }

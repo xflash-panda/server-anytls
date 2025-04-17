@@ -24,6 +24,4 @@ go.work.sum
 # env file
 .env
 
-./v
-
-cmd/server/server
+cmd/server-agent/server-agent

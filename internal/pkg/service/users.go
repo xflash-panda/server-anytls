@@ -4,16 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	api "github.com/xflash-panda/server-client/pkg"
 )
 
 type UsersService struct {
-	client         *api.Client
+	client         pb.AgentClient
 	config         *Config
 	userManager    *UserManager
 	trafficManager *TrafficManager
@@ -21,9 +21,10 @@ type UsersService struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	updateMutex    sync.Mutex
+	lastUsersHash  string
 }
 
-func NewUsersService(config *Config, client *api.Client) *UsersService {
+func NewUsersService(config *Config, client pb.AgentClient) *UsersService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &UsersService{
 		client:         client,
@@ -36,13 +37,19 @@ func NewUsersService(config *Config, client *api.Client) *UsersService {
 }
 
 func (s *UsersService) init() error {
-	userList, _, err := s.client.Users(api.NodeId(s.config.NodeID), api.AnyTLS)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+	r, err := s.client.Users(ctx, &pb.UsersRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}})
+	if err != nil {
+		return err
+	}
+	userList, err := api.UnmarshalUsers(r.GetRawData())
 	if err != nil {
 		return err
 	}
 	s.userList = userList
 	s.userManager.addUsers(*userList)
-	log.Infof("Added %d new users", len(*userList))
+	log.Infof("Added %d new users", len(*s.userList))
 	return nil
 }
 
@@ -78,6 +85,20 @@ func (s *UsersService) Start() error {
 		}
 	}()
 
+	go func() {
+		ticker := time.NewTicker(s.config.HeartBeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := s.HeartBeatTask(); err != nil {
+					log.Errorln("heartbeat task error:", err)
+				}
+			case <-s.ctx.Done():
+				return
+			}
+		}
+	}()
 	log.Infoln("Start fetch users task")
 	log.Infoln("Start report traffic task")
 	return nil
@@ -116,22 +137,30 @@ func (s *UsersService) FetchUsersTask() error {
 	s.updateMutex.Lock()
 	defer s.updateMutex.Unlock()
 
-	newUserList, _, err := s.client.Users(api.NodeId(s.config.NodeID), api.AnyTLS)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+	r, err := s.client.Users(ctx, &pb.UsersRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}, Hash: &s.lastUsersHash})
 	if err != nil {
-		if errors.Is(err, api.ErrorUserNotModified) {
-			log.Infoln(err)
-		} else {
-			log.Errorln(err)
-		}
+		log.Errorln(err)
 		return nil
 	}
 
-	deleted, added := s.compareUserList(newUserList)
+	if r.GetStatus() == pb.ChangeStatus_NOT_CHANGED {
+		log.Infoln("users not modified")
+		return nil
+	}
 
+	s.lastUsersHash = r.GetHash()
+	newUserList, err := api.UnmarshalUsers(r.GetRawData())
+	if err != nil {
+		log.Errorln(err)
+		return err
+	}
+
+	deleted, added := s.compareUserList(newUserList)
 	if len(deleted) > 0 {
 		s.userManager.deleteUsers(deleted)
 	}
-
 	if len(added) > 0 {
 		s.userManager.addUsers(added)
 	}
@@ -147,15 +176,37 @@ func (s *UsersService) toUserTraffics() []*api.UserTraffic {
 }
 
 func (s *UsersService) ReportTrafficsTask() error {
-	userTraffics := s.toUserTraffics()
-	log.Infof("%d user traffic needs to be reported", len(userTraffics))
-	if len(userTraffics) > 0 {
-		err := s.client.Submit(api.NodeId(s.config.NodeID), api.AnyTLS, userTraffics)
+	trafficsRawResult, statsRawResult := s.trafficManager.toTrafficsRawData()
+	if trafficsRawResult.Err != nil {
+		log.Errorln(trafficsRawResult.Err)
+		return nil
+	}
+	if statsRawResult.Err != nil {
+		log.Errorln(statsRawResult.Err)
+		return nil
+	}
+	log.Infoln("reporting traffics...")
+	if len(statsRawResult.Data) > 0 || len(trafficsRawResult.Data) > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+		defer cancel()
+		_, err := s.client.Submit(ctx, &pb.SubmitRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}, RawData: trafficsRawResult.Data, RawStats: statsRawResult.Data})
 		if err != nil {
 			log.Errorln(err)
-			return nil
 		}
 		s.trafficManager.clear()
+	}
+	return nil
+}
+
+func (s *UsersService) HeartBeatTask() error {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+
+	log.Infoln("heartbeat...")
+	_, err := s.client.Heartbeat(ctx, &pb.HeartbeatRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}})
+	if err != nil {
+		log.Errorln(err)
+		return nil
 	}
 	return nil
 }
@@ -295,6 +346,47 @@ func (tm *TrafficManager) clear() {
 	})
 }
 
+func (tm *TrafficManager) toTrafficsRawData() (*RawResult, *RawResult) {
+	traffics, stats := tm.toTraffics()
+	trafficsRawResult := &RawResult{}
+	trafficsRawResult.Data, trafficsRawResult.Err = api.MarshalTraffics(traffics)
+	statsRawResult := &RawResult{}
+	statsRawResult.Data, statsRawResult.Err = api.MarshalTrafficStats(stats)
+	return trafficsRawResult, statsRawResult
+}
+
+func (tm *TrafficManager) toTraffics() ([]*api.UserTraffic, *api.TrafficStats) {
+	userTraffics := make([]*api.UserTraffic, 0)
+	var i = 0
+	var stats api.TrafficStats
+	stats.UserIds = make([]int, 0)
+	stats.UserRequests = make(map[int]int)
+	tm.store.Range(func(key, value any) bool {
+		var userId, ok = key.(int)
+		if !ok {
+			return false
+		}
+		trafficItem := value.(*TrafficItem)
+		if trafficItem.Up.Value() > 0 || trafficItem.Down.Value() > 0 || trafficItem.Count.Value() > 0 {
+			userTraffics = append(userTraffics, &api.UserTraffic{
+				UID:      userId,
+				Upload:   trafficItem.Up.Value(),
+				Download: trafficItem.Down.Value(),
+				Count:    trafficItem.Count.Value(),
+			})
+		}
+		count := int(trafficItem.Count.Value())
+		if count > 0 {
+			stats.Requests += count
+			stats.Count++
+			stats.UserIds = append(stats.UserIds, userId)
+			stats.UserRequests[userId] = int(trafficItem.Count.Value())
+		}
+		i++
+		return true
+	})
+	return userTraffics, &stats
+}
 func newTrafficManager() *TrafficManager {
 	return &TrafficManager{store: sync.Map{}}
 }
