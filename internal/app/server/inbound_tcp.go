@@ -76,6 +76,8 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		logrus.Debug("authentication failed")
 		b.Resize(0, n)
 		return
+	} else {
+		logrus.Debugln("authentication success")
 	}
 
 	paddingLenBytes, err := b.ReadBytes(2)
@@ -98,14 +100,16 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		logrus.Debug("failed to get user ID")
 		return
 	}
-	// logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
+	logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
 	ctx = WithUserService(ctx, s.userService)
 	countedConn := &CountedConn{
-		Conn:   c,
-		userId: userId,
-		ctx:    ctx,
+		Conn:              c,
+		userId:            userId,
+		ctx:               ctx,
+		passwordHexString: passwordHexString,
 	}
 	session := session.NewServerSession(countedConn, func(stream *session.Stream) {
+		logrus.Debugln("stream created")
 		defer func() {
 			if r := recover(); r != nil {
 				logrus.WithFields(logrus.Fields{
@@ -115,6 +119,13 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			}
 		}()
 		defer stream.Close()
+
+		// 验证Auth, 从conn中获取passwordHexString
+		passwordHexString := stream.GetConn().(*CountedConn).passwordHexString
+		if !s.userService.Auth(passwordHexString) {
+			logrus.Debug("authentication failed on stream, origin password:", passwordHexString)
+			return
+		}
 
 		destination, err := M.SocksaddrSerializer.ReadAddrPort(stream)
 		if err != nil {
@@ -134,9 +145,9 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 // CountedConn 包装原始连接以统计流量
 type CountedConn struct {
 	net.Conn
-	userId        int
-	ctx           context.Context
-	passwordBytes []byte
+	userId            int
+	ctx               context.Context
+	passwordHexString string
 }
 
 // Read 实现了 net.Conn 接口，统计下行流量

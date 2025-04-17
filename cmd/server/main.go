@@ -17,7 +17,7 @@ import (
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.0.7"
+	Version   = "0.0.8"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
