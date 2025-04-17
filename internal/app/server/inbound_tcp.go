@@ -144,7 +144,7 @@ func (c *CountedConn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
 	if n > 0 {
 		if userService := GetUserService(c.ctx); userService != nil {
-			userService.UpdateTraffic(c.userId, 0, uint64(n), 0)
+			userService.UpdateTraffic(c.userId, uint64(n), 0, 0)
 		}
 	}
 	return
@@ -155,7 +155,7 @@ func (c *CountedConn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
 	if n > 0 {
 		if userService := GetUserService(c.ctx); userService != nil {
-			userService.UpdateTraffic(c.userId, uint64(n), 0, 0)
+			userService.UpdateTraffic(c.userId, 0, uint64(n), 0)
 		}
 	}
 	return
