@@ -22,7 +22,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.0.1"
+	Version   = "0.0.2"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -40,7 +40,6 @@ func init() {
 }
 
 func main() {
-	var apiConfig api.Config
 	var agentHost string
 	var agentPort int
 	var serviceConfig service.Config
@@ -66,13 +65,6 @@ func main() {
 				Usage:       "server port(agent)",
 				EnvVars:     []string{"X_PANDA_ANYTLS_SERVER_AGENT_PORT", "SERVER_PORT"},
 				Destination: &agentPort,
-			},
-			&cli.StringFlag{
-				Name:        "token",
-				Usage:       "Token of server API",
-				EnvVars:     []string{"X_PANDA_ANYTLS_TOKEN", "TOKEN"},
-				Required:    true,
-				Destination: &apiConfig.Token,
 			},
 			&cli.StringFlag{
 				Name:        "cert_file",
