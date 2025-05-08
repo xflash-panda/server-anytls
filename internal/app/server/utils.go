@@ -5,6 +5,9 @@ import (
 	"net"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+
 	"github.com/apernet/hysteria/extras/v2/outbounds"
 )
 
@@ -57,4 +60,14 @@ func serverConfigOutboundHTTPToOutbound(c serverConfigOutboundHTTP) (outbounds.P
 		return nil, configError{Field: "outbounds.http.url", Err: errors.New("empty http address")}
 	}
 	return outbounds.NewHTTPOutbound(c.URL, c.Insecure)
+}
+
+func geoDownloadFunc(filename, url string) {
+	log.Info("downloading database", zap.String("filename", filename), zap.String("url", url))
+}
+
+func geoDownloadErrFunc(err error) {
+	if err != nil {
+		log.Error("failed to download database", zap.Error(err))
+	}
 }

@@ -18,7 +18,7 @@ import (
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.0.8"
+	Version   = "0.0.9"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -65,7 +65,7 @@ func main() {
 			&cli.StringFlag{
 				Name:        "ext_conf_file",
 				Usage:       "Extended profiles for ACL and Outbounds(.yaml format)",
-				EnvVars:     []string{"X_PANDA_HYSTERIA2_EXT_CONF_FILE", "EXT_CONF_FILE"},
+				EnvVars:     []string{"X_PANDA_ANYTLS_EXT_CONF_FILE", "EXT_CONF_FILE"},
 				Required:    false,
 				Destination: &extConfPath,
 			},
@@ -174,8 +174,15 @@ func main() {
 			}
 
 			var extConfig *server.ExtConfig
-			if err := viper.Unmarshal(&extConfig); err != nil {
-				return fmt.Errorf("failed to unmarshal ext config: %w", err)
+			if extConfPath != "" {
+				viper.SetConfigFile(extConfPath)
+				if err := viper.ReadInConfig(); err != nil {
+					return fmt.Errorf("failed to read ext config: %w", err)
+				}
+
+				if err := viper.Unmarshal(&extConfig); err != nil {
+					return fmt.Errorf("failed to unmarshal ext config: %w", err)
+				}
 			}
 
 			userService := service.NewUsersService(&serviceConfig, apiClient)

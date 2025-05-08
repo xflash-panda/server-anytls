@@ -31,7 +31,7 @@ type Server struct {
 	wg     sync.WaitGroup
 }
 
-func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) error {
+func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config) error {
 	if nodeConfig == nil {
 		return errors.New("nodeConfig is nil")
 	}
@@ -41,9 +41,7 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	if tlsConfig == nil {
 		return errors.New("tlsConfig is nil")
 	}
-	if extConfig == nil {
-		return errors.New("extConfig is nil")
-	}
+
 	anyTLSConfig := nodeConfig.(*api.AnyTLSConfig)
 	if anyTLSConfig.ServerPort <= 0 || anyTLSConfig.ServerPort > 65535 {
 		return fmt.Errorf("invalid server port: %d", anyTLSConfig.ServerPort)
@@ -52,7 +50,7 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 }
 
 func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) (*Server, error) {
-	if err := validateConfig(nodeConfig, userService, tlsConfig, extConfig); err != nil {
+	if err := validateConfig(nodeConfig, userService, tlsConfig); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 	var uOb outbounds.PluggableOutbound
@@ -88,7 +86,23 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 				obs[i] = outbounds.OutboundEntry{Name: entry.Name, Outbound: ob}
 			}
 		}
-		uOb = obs[0].Outbound
+		gLoader := &GeoLoader{
+			GeoIPFilename:   "",
+			GeoSiteFilename: "",
+			UpdateInterval:  geoDefaultUpdateInterval,
+			DownloadFunc:    geoDownloadFunc,
+			DownloadErrFunc: geoDownloadErrFunc,
+		}
+
+		if len(extConfig.ACL.Inline) > 0 {
+			aclOutbound, err := outbounds.NewACLEngineFromString(strings.Join(extConfig.ACL.Inline, "\n"), obs, gLoader)
+			if err != nil {
+				return nil, configError{Field: "acl.inline", Err: err}
+			}
+			uOb = aclOutbound
+		} else {
+			uOb = obs[0].Outbound
+		}
 	} else {
 		uOb = outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto)
 	}
