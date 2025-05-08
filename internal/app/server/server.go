@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
+	C "github.com/apernet/hysteria/core/v2/server"
+	"github.com/apernet/hysteria/extras/v2/outbounds"
 	"github.com/sirupsen/logrus"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
@@ -20,14 +23,15 @@ type Server struct {
 	anyTLSConfig *api.AnyTLSConfig
 	listener     net.Listener
 	userService  *service.UsersService
-
+	extConfig    *ExtConfig
+	outbound     C.Outbound
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config) error {
+func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) error {
 	if nodeConfig == nil {
 		return errors.New("nodeConfig is nil")
 	}
@@ -37,6 +41,9 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	if tlsConfig == nil {
 		return errors.New("tlsConfig is nil")
 	}
+	if extConfig == nil {
+		return errors.New("extConfig is nil")
+	}
 	anyTLSConfig := nodeConfig.(*api.AnyTLSConfig)
 	if anyTLSConfig.ServerPort <= 0 || anyTLSConfig.ServerPort > 65535 {
 		return fmt.Errorf("invalid server port: %d", anyTLSConfig.ServerPort)
@@ -44,18 +51,59 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	return nil
 }
 
-func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config) (*Server, error) {
-	if err := validateConfig(nodeConfig, userService, tlsConfig); err != nil {
+func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) (*Server, error) {
+	if err := validateConfig(nodeConfig, userService, tlsConfig, extConfig); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	var uOb outbounds.PluggableOutbound
+	if extConfig != nil {
+		var obs []outbounds.OutboundEntry
+		if len(extConfig.Outbounds) == 0 {
+			obs = []outbounds.OutboundEntry{{
+				Name:     "default",
+				Outbound: outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto),
+			}}
+		} else {
+			obs = make([]outbounds.OutboundEntry, len(extConfig.Outbounds))
+			for i, entry := range extConfig.Outbounds {
+				if entry.Name == "" {
+					return nil, configError{Field: "outbounds.name", Err: errors.New("empty outbound name")}
+				}
+				var ob outbounds.PluggableOutbound
+				var err error
+				switch strings.ToLower(entry.Type) {
+				case "direct":
+					ob, err = serverConfigOutboundDirectToOutbound(entry.Direct)
+				case "socks5":
+					ob, err = serverConfigOutboundSOCKS5ToOutbound(entry.SOCKS5)
+				case "http":
+					ob, err = serverConfigOutboundHTTPToOutbound(entry.HTTP)
+				default:
+					err = configError{Field: "outbounds.type", Err: errors.New("unsupported outbound type")}
+				}
+				if err != nil {
+
+					return nil, err
+				}
+				obs[i] = outbounds.OutboundEntry{Name: entry.Name, Outbound: ob}
+			}
+		}
+		uOb = obs[0].Outbound
+	} else {
+		uOb = outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
 		tlsConfig:    tlsConfig,
 		userService:  userService,
+		extConfig:    extConfig,
 		ctx:          ctx,
 		cancel:       cancel,
+		outbound:     &outbounds.PluggableOutboundAdapter{PluggableOutbound: uOb},
 	}
+
 	if s.anyTLSConfig.AllowInsecure == 1 {
 		s.tlsConfig.InsecureSkipVerify = true
 	}

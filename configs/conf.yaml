@@ -1,0 +1,18 @@
+outbounds:
+  - name: gpt
+    type: direct
+    direct:
+      mode: auto
+      bindDevice: warp
+acl:
+  inline:
+    - gpt(geosite:openai)
+    - gpt(geosite:sb)
+    - gpt(ip.gs)
+    - gpt(all)
+sniff:
+  enable: true
+  timeout: 2s
+  rewriteDomain: false
+  tcpPorts: 80,443,8000-9000
+  udpPorts: all

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
 	"github.com/xflash-panda/server-anytls/internal/app/server"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
@@ -39,6 +40,7 @@ func main() {
 	var serviceConfig service.Config
 	var certConfig server.CertConfig
 	var logLevel string
+	var extConfPath string
 
 	app := &cli.App{
 		Name:      Name,
@@ -59,6 +61,13 @@ func main() {
 				EnvVars:     []string{"X_PANDA_ANYTLS_TOKEN", "TOKEN"},
 				Required:    true,
 				Destination: &apiConfig.Token,
+			},
+			&cli.StringFlag{
+				Name:        "ext_conf_file",
+				Usage:       "Extended profiles for ACL and Outbounds(.yaml format)",
+				EnvVars:     []string{"X_PANDA_HYSTERIA2_EXT_CONF_FILE", "EXT_CONF_FILE"},
+				Required:    false,
+				Destination: &extConfPath,
 			},
 			&cli.StringFlag{
 				Name:        "cert_file",
@@ -164,8 +173,13 @@ func main() {
 				return fmt.Errorf("failed to load TLS config: %w", err)
 			}
 
+			var extConfig *server.ExtConfig
+			if err := viper.Unmarshal(&extConfig); err != nil {
+				return fmt.Errorf("failed to unmarshal ext config: %w", err)
+			}
+
 			userService := service.NewUsersService(&serviceConfig, apiClient)
-			srv, err := server.New(nodeConf, userService, tlsConfig)
+			srv, err := server.New(nodeConf, userService, tlsConfig, extConfig)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err.Error(),

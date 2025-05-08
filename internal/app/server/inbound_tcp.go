@@ -136,9 +136,9 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			return
 		}
 		if strings.Contains(destination.String(), "udp-over-tcp.arpa") {
-			proxyOutboundUoT(ctx, stream, destination)
+			proxyOutboundUoTWithOutbound(ctx, stream, destination, s.outbound)
 		} else {
-			proxyOutboundTCP(ctx, stream, destination)
+			proxyOutboundTCPWithOutbound(ctx, stream, destination, s.outbound)
 		}
 	}, &padding.DefaultPaddingFactory)
 	s.userService.UpdateTraffic(userId, uint64(n), 0, 0)
