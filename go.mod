@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.23.9
 
 require (
+	github.com/apernet/hysteria/core/v2 v2.6.1
 	github.com/apernet/hysteria/extras/v2 v2.6.1
 	github.com/chen3feng/stl4go v0.1.1
 	github.com/sagernet/sing v0.5.1
@@ -15,7 +16,6 @@ require (
 )
 
 require (
-	github.com/apernet/hysteria/core/v2 v2.6.1 // indirect
 	github.com/apernet/quic-go v0.49.1-0.20250204013113-43c72b1281a0 // indirect
 	github.com/babolivier/go-doh-client v0.0.0-20201028162107-a76cff4cb8b6 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect

@@ -136,9 +136,16 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			return
 		}
 		if strings.Contains(destination.String(), "udp-over-tcp.arpa") {
-			proxyOutboundUoTWithOutbound(ctx, stream, destination, s.outbound)
+			err = proxyOutboundUoTWithOutbound(ctx, stream, destination, s.outbound)
+			if err != nil {
+				logrus.WithError(err).Debug("failed to proxy outbound UoT")
+			}
 		} else {
-			proxyOutboundTCPWithOutbound(ctx, stream, destination, s.outbound)
+			err = proxyOutboundTCPWithOutbound(ctx, stream, destination, s.outbound)
+			if err != nil {
+				logrus.WithError(err).Debug("failed to proxy outbound TCP")
+			}
+
 		}
 	}, &padding.DefaultPaddingFactory)
 	s.userService.UpdateTraffic(userId, uint64(n), 0, 0)
