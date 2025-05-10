@@ -10,6 +10,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/app/server"
@@ -22,7 +23,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.0.2"
+	Version   = "0.0.3"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -45,6 +46,7 @@ func main() {
 	var serviceConfig service.Config
 	var certConfig server.CertConfig
 	var logLevel string
+	var extConfPath string
 
 	app := &cli.App{
 		Name:      Name,
@@ -67,8 +69,15 @@ func main() {
 				Destination: &agentPort,
 			},
 			&cli.StringFlag{
+				Name:        "ext_conf_file",
+				Usage:       "extended profiles for ACL and Outbounds(.yaml format)",
+				EnvVars:     []string{"X_PANDA_ANYTLS_EXT_CONF_FILE", "EXT_CONF_FILE"},
+				Required:    false,
+				Destination: &extConfPath,
+			},
+			&cli.StringFlag{
 				Name:        "cert_file",
-				Usage:       "Cert file",
+				Usage:       "cert file",
 				EnvVars:     []string{"X_PANDA_ANYTLS_CERT_FILE", "CERT_FILE"},
 				Value:       "/root/.cert/server.crt",
 				Required:    false,
@@ -77,7 +86,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:        "key_file",
-				Usage:       "Key file",
+				Usage:       "key file",
 				EnvVars:     []string{"X_PANDA_ANYTLS_KEY_FILE", "KEY_FILE"},
 				Value:       "/root/.cert/server.key",
 				Required:    false,
@@ -86,7 +95,7 @@ func main() {
 			},
 			&cli.IntFlag{
 				Name:        "node",
-				Usage:       "Node ID",
+				Usage:       "node ID",
 				EnvVars:     []string{"X_PANDA_ANYTLS_NODE", "NODE"},
 				Required:    true,
 				Destination: &serviceConfig.NodeID,
@@ -121,7 +130,7 @@ func main() {
 			&cli.StringFlag{
 				Name:        "log_mode",
 				Value:       server.LogLevelError,
-				Usage:       "Log mode",
+				Usage:       "log mode",
 				EnvVars:     []string{"X_PANDA_ANYTLS_LOG_LEVEL", "LOG_LEVEL"},
 				Destination: &logLevel,
 				Required:    false,
@@ -189,8 +198,20 @@ func main() {
 				return fmt.Errorf("failed to load TLS config: %w", err)
 			}
 
+			var extConfig *server.ExtConfig
+			if extConfPath != "" {
+				viper.SetConfigFile(extConfPath)
+				if err := viper.ReadInConfig(); err != nil {
+					return fmt.Errorf("failed to read ext config: %w", err)
+				}
+
+				if err := viper.Unmarshal(&extConfig); err != nil {
+					return fmt.Errorf("failed to unmarshal ext config: %w", err)
+				}
+			}
 			userService := service.NewUsersService(&serviceConfig, agentClient)
-			srv, err := server.New(anytlsConfig, userService, tlsConfig)
+			srv, err := server.New(anytlsConfig, userService, tlsConfig, extConfig)
+
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err.Error(),

@@ -4,18 +4,16 @@ import (
 	"context"
 	"net"
 
-	"github.com/xflash-panda/server-anytls/internal/pkg/proxy"
-
+	C "github.com/apernet/hysteria/core/v2/server"
 	"github.com/sagernet/sing/common/bufio"
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 	"github.com/sagernet/sing/common/uot"
-	"github.com/sirupsen/logrus"
 )
 
-func proxyOutboundTCP(ctx context.Context, conn net.Conn, destination M.Socksaddr) error {
-	c, err := proxy.SystemDialer.DialContext(ctx, "tcp", destination.String())
+func proxyOutboundTCPWithOutbound(ctx context.Context, conn net.Conn, destination M.Socksaddr, outbound C.Outbound) error {
+	c, err := outbound.TCP(destination.String())
 	if err != nil {
 		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
 		return err
@@ -29,17 +27,16 @@ func proxyOutboundTCP(ctx context.Context, conn net.Conn, destination M.Socksadd
 	return bufio.CopyConn(ctx, conn, c)
 }
 
-func proxyOutboundUoT(ctx context.Context, conn net.Conn, destination M.Socksaddr) error {
-
+func proxyOutboundUoTWithOutbound(ctx context.Context, conn net.Conn, destination M.Socksaddr, outbound C.Outbound) error {
 	request, err := uot.ReadRequest(conn)
 	if err != nil {
-		logrus.Debugln("proxyOutboundUoT ReadRequest:", err)
+		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
 		return err
 	}
 
-	c, err := net.ListenPacket("udp", "")
+	c, err := outbound.UDP(destination.String())
+
 	if err != nil {
-		logrus.Debugln("proxyOutboundUoT ListenPacket:", err)
 		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
 		return err
 	}
@@ -49,5 +46,6 @@ func proxyOutboundUoT(ctx context.Context, conn net.Conn, destination M.Socksadd
 		return err
 	}
 
-	return bufio.CopyPacketConn(ctx, uot.NewConn(conn, *request), bufio.NewPacketConn(c))
+	packetConn := &udpConnAdapter{UDPConn: c}
+	return bufio.CopyPacketConn(ctx, uot.NewConn(conn, *request), bufio.NewPacketConn(packetConn))
 }

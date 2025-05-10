@@ -25,3 +25,5 @@ go.work.sum
 .env
 
 cmd/server-agent/server-agent
+cmd/server/geoip.dat
+cmd/server/geosite.dat
