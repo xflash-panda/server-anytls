@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	api "github.com/xflash-panda/server-client/pkg"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type UsersService struct {
@@ -54,7 +56,10 @@ func (s *UsersService) init() error {
 }
 
 func (s *UsersService) Start() error {
-	s.init()
+	if err := s.init(); err != nil {
+		return fmt.Errorf("failed to initialize users service: %w", err)
+	}
+
 	go func() {
 		ticker := time.NewTicker(s.config.FetchUserInterval)
 		defer ticker.Stop()
@@ -169,10 +174,6 @@ func (s *UsersService) FetchUsersTask() error {
 	log.Infof("current users: %d", s.userManager.countUsers())
 	s.userList = newUserList
 	return nil
-}
-
-func (s *UsersService) toUserTraffics() []*api.UserTraffic {
-	return s.trafficManager.toUserTraffics()
 }
 
 func (s *UsersService) ReportTrafficsTask() error {
@@ -298,27 +299,6 @@ type TrafficManager struct {
 	store sync.Map
 }
 
-func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
-	userTraffics := make([]*api.UserTraffic, 0)
-	tm.store.Range(func(key, value any) bool {
-		var userId, ok = key.(int)
-		if !ok {
-			return false
-		}
-		trafficItem := value.(*TrafficItem)
-		if trafficItem.Up.Value() > 0 || trafficItem.Down.Value() > 0 || trafficItem.Count.Value() > 0 {
-			userTraffics = append(userTraffics, &api.UserTraffic{
-				UID:      userId,
-				Upload:   trafficItem.Up.Value(),
-				Download: trafficItem.Down.Value(),
-				Count:    trafficItem.Count.Value(),
-			})
-		}
-		return true
-	})
-	return userTraffics
-}
-
 func (tm *TrafficManager) load(userId int) *TrafficItem {
 	if item, ok := tm.store.Load(userId); !ok {
 		return nil
@@ -329,14 +309,6 @@ func (tm *TrafficManager) load(userId int) *TrafficItem {
 
 func (tm *TrafficManager) set(userId int, item *TrafficItem) {
 	tm.store.Store(userId, item)
-}
-
-func (tm *TrafficManager) forRange(f func(key, value any) bool) {
-	tm.store.Range(f)
-}
-
-func (tm *TrafficManager) delete(userId int) {
-	tm.store.Delete(userId)
 }
 
 func (tm *TrafficManager) clear() {
@@ -357,12 +329,12 @@ func (tm *TrafficManager) toTrafficsRawData() (*RawResult, *RawResult) {
 
 func (tm *TrafficManager) toTraffics() ([]*api.UserTraffic, *api.TrafficStats) {
 	userTraffics := make([]*api.UserTraffic, 0)
-	var i = 0
+	i := 0
 	var stats api.TrafficStats
 	stats.UserIds = make([]int, 0)
 	stats.UserRequests = make(map[int]int)
 	tm.store.Range(func(key, value any) bool {
-		var userId, ok = key.(int)
+		userId, ok := key.(int)
 		if !ok {
 			return false
 		}
@@ -387,6 +359,7 @@ func (tm *TrafficManager) toTraffics() ([]*api.UserTraffic, *api.TrafficStats) {
 	})
 	return userTraffics, &stats
 }
+
 func newTrafficManager() *TrafficManager {
 	return &TrafficManager{store: sync.Map{}}
 }

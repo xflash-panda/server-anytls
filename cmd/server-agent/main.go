@@ -9,13 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
-	"github.com/urfave/cli/v2"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/app/server"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
@@ -23,22 +24,9 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.0.3"
+	Version   = "0.0.4"
 	CopyRight = "XFLASH-PANDA@2021"
 )
-
-func init() {
-	cli.VersionFlag = &cli.BoolFlag{
-		Name:    "version",
-		Aliases: []string{"V"},
-		Usage:   "print only the version",
-	}
-	cli.ErrWriter = io.Discard
-
-	cli.VersionPrinter = func(c *cli.Context) {
-		fmt.Printf("version=%s\n", Version)
-	}
-}
 
 func main() {
 	var agentHost string
@@ -53,7 +41,20 @@ func main() {
 		Version:   Version,
 		Copyright: CopyRight,
 		Usage:     "Provide anytls service for the v2Board(XFLASH-PANDA)",
+		ErrWriter: io.Discard,
 		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "version",
+				Aliases: []string{"V"},
+				Usage:   "print only the version",
+				Action: func(c *cli.Context, b bool) error {
+					if b {
+						fmt.Printf("version=%s\n", Version)
+						os.Exit(0)
+					}
+					return nil
+				},
+			},
 			&cli.StringFlag{
 				Name:        "server_host, sh",
 				Value:       "127.0.0.1",
@@ -167,7 +168,7 @@ func main() {
 			}
 
 			agentAddr := fmt.Sprintf("%s:%d", agentHost, agentPort)
-			agentConn, err := grpc.Dial(agentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithKeepaliveParams(
+			agentConn, err := grpc.NewClient(agentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(
 				keepalive.ClientParameters{
 					Time:                30 * time.Second, // 每30秒发送一次keepalive探测
 					Timeout:             10 * time.Second, // 如果10秒内没有响应，则认为连接断开
@@ -211,7 +212,6 @@ func main() {
 			}
 			userService := service.NewUsersService(&serviceConfig, agentClient)
 			srv, err := server.New(anytlsConfig, userService, tlsConfig, extConfig)
-
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err.Error(),

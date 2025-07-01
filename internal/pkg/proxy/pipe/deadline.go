@@ -16,13 +16,11 @@ func MakePipeDeadline() PipeDeadline {
 }
 
 func (d *PipeDeadline) Set(t time.Time) {
-
 	d.mu.Lock()
 
 	defer d.mu.Unlock()
 
 	if d.timer != nil && !d.timer.Stop() {
-
 		<-d.cancel
 	}
 	d.timer = nil
@@ -38,12 +36,10 @@ func (d *PipeDeadline) Set(t time.Time) {
 	if dur := time.Until(t); dur > 0 {
 
 		if closed {
-
 			d.cancel = make(chan struct{})
 		}
 
 		d.timer = time.AfterFunc(dur, func() {
-
 			close(d.cancel)
 		})
 		return
@@ -55,7 +51,6 @@ func (d *PipeDeadline) Set(t time.Time) {
 }
 
 func (d *PipeDeadline) Wait() chan struct{} {
-
 	d.mu.Lock()
 
 	defer d.mu.Unlock()
@@ -64,7 +59,6 @@ func (d *PipeDeadline) Wait() chan struct{} {
 }
 
 func isClosedChan(c <-chan struct{}) bool {
-
 	select {
 
 	case <-c:

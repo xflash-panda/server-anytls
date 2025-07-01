@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
-	C "github.com/apernet/hysteria/core/v2/server"
-	"github.com/apernet/hysteria/extras/v2/outbounds"
-	"github.com/sirupsen/logrus"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
+
+	C "github.com/apernet/hysteria/core/v2/server"
+	"github.com/apernet/hysteria/extras/v2/outbounds"
+	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
@@ -80,7 +81,6 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 					err = configError{Field: "outbounds.type", Err: errors.New("unsupported outbound type")}
 				}
 				if err != nil {
-
 					return nil, err
 				}
 				obs[i] = outbounds.OutboundEntry{Name: entry.Name, Outbound: ob}

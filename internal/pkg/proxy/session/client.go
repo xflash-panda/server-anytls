@@ -43,7 +43,6 @@ type Client struct {
 func NewClient(ctx context.Context, dialOut util.DialOutFunc,
 	_padding *atomic.TypedValue[*padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
 ) *Client {
-
 	c := &Client{
 		sessions:           make(map[uint64]*Session),
 		dialOut:            dialOut,
@@ -69,7 +68,6 @@ func NewClient(ctx context.Context, dialOut util.DialOutFunc,
 }
 
 func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
-
 	select {
 
 	case <-c.die.Done():
@@ -93,7 +91,6 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 		}
 
 		stream, err = session.OpenStream()
-
 		if err != nil {
 			session.Close()
 			continue
@@ -106,7 +103,6 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 	}
 
 	stream.dieHook = func() {
-
 		if !session.IsClosed() {
 			select {
 
@@ -131,7 +127,6 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 }
 
 func (c *Client) findSession(ctx context.Context) (*Session, error) {
-
 	var idle *Session
 
 	c.idleSessionLock.Lock()
@@ -157,9 +152,7 @@ func (c *Client) findSession(ctx context.Context) (*Session, error) {
 }
 
 func (c *Client) createSession(ctx context.Context) (*Session, error) {
-
 	underlying, err := c.dialOut(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +162,6 @@ func (c *Client) createSession(ctx context.Context) (*Session, error) {
 	session.seq = c.sessionCounter.Add(1)
 
 	session.dieHook = func() {
-
 		c.idleSessionLock.Lock()
 
 		c.idleSession.Remove(math.MaxUint64 - session.seq)

@@ -5,10 +5,9 @@ import (
 	"net"
 	"strings"
 
+	"github.com/apernet/hysteria/extras/v2/outbounds"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
-
-	"github.com/apernet/hysteria/extras/v2/outbounds"
 )
 
 func serverConfigOutboundDirectToOutbound(c serverConfigOutboundDirect) (outbounds.PluggableOutbound, error) {
