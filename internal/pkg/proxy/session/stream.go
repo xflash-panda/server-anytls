@@ -27,7 +27,6 @@ type Stream struct {
 }
 
 func newStream(id uint32, sess *Session) *Stream {
-
 	s := new(Stream)
 
 	s.id = id
@@ -42,11 +41,9 @@ func newStream(id uint32, sess *Session) *Stream {
 }
 
 func (s *Stream) Read(b []byte) (n int, err error) {
-
 	n, err = s.pipeR.Read(b)
 
 	if n == 0 && s.dieErr != nil {
-
 		err = s.dieErr
 	}
 
@@ -54,7 +51,6 @@ func (s *Stream) Read(b []byte) (n int, err error) {
 }
 
 func (s *Stream) Write(b []byte) (n int, err error) {
-
 	select {
 
 	case <-s.writeDeadline.Wait():
@@ -70,16 +66,13 @@ func (s *Stream) Write(b []byte) (n int, err error) {
 }
 
 func (s *Stream) Close() error {
-
 	return s.CloseWithError(io.ErrClosedPipe)
 }
 
 func (s *Stream) CloseWithError(err error) error {
-
 	var once bool
 
 	s.dieOnce.Do(func() {
-
 		s.dieErr = err
 
 		s.pipeR.Close()
@@ -90,32 +83,26 @@ func (s *Stream) CloseWithError(err error) error {
 	if once {
 
 		if s.dieHook != nil {
-
 			s.dieHook()
-
 		}
 
 		return s.sess.streamClosed(s.id)
 	} else {
-
 		return s.dieErr
 	}
 }
 
 func (s *Stream) SetReadDeadline(t time.Time) error {
-
 	return s.pipeR.SetReadDeadline(t)
 }
 
 func (s *Stream) SetWriteDeadline(t time.Time) error {
-
 	s.writeDeadline.Set(t)
 
 	return nil
 }
 
 func (s *Stream) SetDeadline(t time.Time) error {
-
 	s.SetWriteDeadline(t)
 
 	return s.SetReadDeadline(t)
@@ -164,9 +151,7 @@ func (s *Stream) HandshakeSuccess() error {
 	})
 
 	if once && s.sess.peerVersion >= 2 {
-
 		if _, err := s.sess.writeFrame(newFrame(cmdSYNACK, s.id)); err != nil {
-
 			return err
 		}
 	}

@@ -35,7 +35,6 @@ func proxyOutboundUoTWithOutbound(ctx context.Context, conn net.Conn, destinatio
 	}
 
 	c, err := outbound.UDP(destination.String())
-
 	if err != nil {
 		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
 		return err

@@ -9,13 +9,13 @@ import (
 	"runtime/debug"
 	"strings"
 
-	M "github.com/sagernet/sing/common/metadata"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/session"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
+	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sirupsen/logrus"
 )
 

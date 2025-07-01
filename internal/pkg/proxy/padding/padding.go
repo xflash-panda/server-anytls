@@ -8,8 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sagernet/sing/common/atomic"
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
+
+	"github.com/sagernet/sing/common/atomic"
 )
 
 const CheckMark = -1

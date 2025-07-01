@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	api "github.com/xflash-panda/server-client/pkg"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type UsersService struct {
@@ -47,7 +48,9 @@ func (s *UsersService) init() error {
 }
 
 func (s *UsersService) Start() error {
-	s.init()
+	if err := s.init(); err != nil {
+		return err
+	}
 	go func() {
 		ticker := time.NewTicker(s.config.FetchUserInterval)
 		defer ticker.Stop()
@@ -250,7 +253,7 @@ type TrafficManager struct {
 func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
 	userTraffics := make([]*api.UserTraffic, 0)
 	tm.store.Range(func(key, value any) bool {
-		var userId, ok = key.(int)
+		userId, ok := key.(int)
 		if !ok {
 			return false
 		}
@@ -278,14 +281,6 @@ func (tm *TrafficManager) load(userId int) *TrafficItem {
 
 func (tm *TrafficManager) set(userId int, item *TrafficItem) {
 	tm.store.Store(userId, item)
-}
-
-func (tm *TrafficManager) forRange(f func(key, value any) bool) {
-	tm.store.Range(f)
-}
-
-func (tm *TrafficManager) delete(userId int) {
-	tm.store.Delete(userId)
 }
 
 func (tm *TrafficManager) clear() {

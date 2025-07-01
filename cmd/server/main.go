@@ -8,12 +8,13 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
-	"github.com/urfave/cli/v2"
 	"github.com/xflash-panda/server-anytls/internal/app/server"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -21,19 +22,6 @@ const (
 	Version   = "0.0.9"
 	CopyRight = "XFLASH-PANDA@2021"
 )
-
-func init() {
-	cli.VersionFlag = &cli.BoolFlag{
-		Name:    "version",
-		Aliases: []string{"V"},
-		Usage:   "print only the version",
-	}
-	cli.ErrWriter = io.Discard
-
-	cli.VersionPrinter = func(c *cli.Context) {
-		fmt.Printf("version=%s\n", Version)
-	}
-}
 
 func main() {
 	var apiConfig api.Config
@@ -47,6 +35,7 @@ func main() {
 		Version:   Version,
 		Copyright: CopyRight,
 		Usage:     "Provide anytls service for the v2Board(XFLASH-PANDA)",
+		ErrWriter: io.Discard,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "api",

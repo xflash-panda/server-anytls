@@ -1,8 +1,6 @@
 module github.com/xflash-panda/server-anytls
 
-go 1.23.0
-
-toolchain go1.23.9
+go 1.23.10
 
 require (
 	github.com/apernet/hysteria/core/v2 v2.6.1
