@@ -84,8 +84,24 @@ func (s *UsersService) Start() error {
 		}
 	}()
 
+	go func() {
+		ticker := time.NewTicker(s.config.HeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := s.HeartbeatTask(); err != nil {
+					log.Errorln("heartbeat task error:", err)
+				}
+			case <-s.ctx.Done():
+				return
+			}
+		}
+	}()
+
 	log.Infoln("Start fetch users task")
 	log.Infoln("Start report traffic task")
+	log.Infoln("Start heartbeat task")
 	return nil
 }
 
@@ -162,6 +178,14 @@ func (s *UsersService) ReportTrafficsTask() error {
 			return nil
 		}
 		s.trafficManager.clear()
+	}
+	return nil
+}
+
+func (s *UsersService) HeartbeatTask() error {
+	log.Infoln("heartbeat task")
+	if err := s.client.Heartbeat(s.config.RegisterID, api.AnyTLS, ""); err != nil {
+		return err
 	}
 	return nil
 }
