@@ -124,7 +124,7 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 	return s, nil
 }
 
-func (s *Server) Run() error {
+func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.anyTLSConfig.ServerPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -164,7 +164,7 @@ func (s *Server) Run() error {
 	}
 }
 
-func (s *Server) Stop() error {
+func (s *Server) Close() error {
 	s.cancel()
 	if s.listener != nil {
 		if err := s.listener.Close(); err != nil {
