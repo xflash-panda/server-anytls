@@ -13,7 +13,6 @@ import (
 	api "github.com/xflash-panda/server-client/pkg"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
 )
 
@@ -140,42 +139,7 @@ func main() {
 				}()
 			}
 
-			apiClient := api.New(&apiConfig)
-
-			nodeConf, err := apiClient.Config(api.NodeId(serviceConfig.NodeID), api.AnyTLS)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"node_id": serviceConfig.NodeID,
-					"error":   err.Error(),
-				}).Error("Failed to get node configuration")
-				return fmt.Errorf("failed to get node config: %w", err)
-			}
-
-			log.WithFields(log.Fields{
-				"node_id":   serviceConfig.NodeID,
-				"node_info": nodeConf.String(),
-			}).Info("Server configuration loaded successfully")
-
-			tlsConfig, err := certConfig.Load()
-			if err != nil {
-				log.WithError(err).Error("Failed to load TLS configuration")
-				return fmt.Errorf("failed to load TLS config: %w", err)
-			}
-
-			var extConfig *server.ExtConfig
-			if extConfPath != "" {
-				viper.SetConfigFile(extConfPath)
-				if err := viper.ReadInConfig(); err != nil {
-					return fmt.Errorf("failed to read ext config: %w", err)
-				}
-
-				if err := viper.Unmarshal(&extConfig); err != nil {
-					return fmt.Errorf("failed to unmarshal ext config: %w", err)
-				}
-			}
-
-			userService := service.NewUsersService(&serviceConfig, apiClient)
-			srv, err := server.New(nodeConf, userService, tlsConfig, extConfig)
+			srv, err := server.New(apiConfig, serviceConfig, certConfig, extConfPath)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err.Error(),

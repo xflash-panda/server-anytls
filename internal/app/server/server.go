@@ -17,15 +17,23 @@ import (
 	C "github.com/apernet/hysteria/core/v2/server"
 	"github.com/apernet/hysteria/extras/v2/outbounds"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type Server struct {
+	// runtime objects
 	tlsConfig    *tls.Config
 	anyTLSConfig *api.AnyTLSConfig
 	listener     net.Listener
 	userService  *service.UsersService
-	extConfig    *ExtConfig
-	outbound     C.Outbound
+
+	// startup inputs
+	apiConfig     api.Config
+	serviceConfig service.Config
+	certConfig    CertConfig
+	extConfPath   string
+	extConfig     *ExtConfig
+	outbound      C.Outbound
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -50,20 +58,53 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	return nil
 }
 
-func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) (*Server, error) {
+func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConfig, extConfPath string) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
-		tlsConfig:    tlsConfig,
-		userService:  userService,
-		extConfig:    extConfig,
-		ctx:          ctx,
-		cancel:       cancel,
+		apiConfig:     apiConfig,
+		serviceConfig: serviceConfig,
+		certConfig:    certConfig,
+		extConfPath:   extConfPath,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 	return s, nil
 }
 
 func (s *Server) Start() error {
+	// 初始化依赖：API 客户端、节点配置、TLS、扩展配置、用户服务
+	apiClient := api.New(&s.apiConfig)
+
+	nodeConf, err := apiClient.Config(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS)
+	if err != nil {
+		return fmt.Errorf("failed to get node config: %w", err)
+	}
+	s.anyTLSConfig = nodeConf.(*api.AnyTLSConfig)
+	logrus.WithFields(logrus.Fields{
+		"node_id":   s.serviceConfig.NodeID,
+		"node_info": nodeConf.String(),
+	}).Info("Server configuration loaded successfully")
+
+	tlsConfig, err := s.certConfig.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load TLS config: %w", err)
+	}
+	s.tlsConfig = tlsConfig
+
+	if s.extConfPath != "" {
+		viper.SetConfigFile(s.extConfPath)
+		if err := viper.ReadInConfig(); err != nil {
+			return fmt.Errorf("failed to read ext config: %w", err)
+		}
+		var extConfig *ExtConfig
+		if err := viper.Unmarshal(&extConfig); err != nil {
+			return fmt.Errorf("failed to unmarshal ext config: %w", err)
+		}
+		s.extConfig = extConfig
+	}
+
+	s.userService = service.NewUsersService(&s.serviceConfig, apiClient)
+
 	// 校验配置并完成启动期初始化
 	if err := validateConfig(s.anyTLSConfig, s.userService, s.tlsConfig); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)

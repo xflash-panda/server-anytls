@@ -6,6 +6,7 @@ import (
 	"time"
 
 	C "github.com/apernet/hysteria/core/v2/server"
+	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 )
 
 const (
@@ -118,3 +119,6 @@ func (a *udpConnAdapter) SetReadDeadline(t time.Time) error {
 func (a *udpConnAdapter) SetWriteDeadline(t time.Time) error {
 	return nil
 }
+
+// ServiceConfigAlias 用于在 main 包中通过 server 包引用 service.Config，避免直接依赖 service 包
+type ServiceConfigAlias = service.Config
