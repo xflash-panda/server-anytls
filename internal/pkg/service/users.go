@@ -37,7 +37,10 @@ func NewUsersService(config *Config, client *api.Client) *UsersService {
 }
 
 func (s *UsersService) init() error {
-	userList, _, err := s.client.Users(api.NodeId(s.config.NodeID), api.AnyTLS)
+	if s.config.RegisterID <= 0 {
+		return errors.New("register id is not set")
+	}
+	userList, err := s.client.Users(s.config.RegisterID, api.AnyTLS)
 	if err != nil {
 		return err
 	}
@@ -119,12 +122,12 @@ func (s *UsersService) FetchUsersTask() error {
 	s.updateMutex.Lock()
 	defer s.updateMutex.Unlock()
 
-	newUserList, _, err := s.client.Users(api.NodeId(s.config.NodeID), api.AnyTLS)
+	newUserList, err := s.client.Users(s.config.RegisterID, api.AnyTLS)
 	if err != nil {
 		if errors.Is(err, api.ErrorUserNotModified) {
-			log.Infoln(err)
+			log.Infoln("user not modified:", err)
 		} else {
-			log.Errorln(err)
+			log.Errorln("fetch users task error:", err)
 		}
 		return nil
 	}
@@ -153,9 +156,9 @@ func (s *UsersService) ReportTrafficsTask() error {
 	userTraffics := s.toUserTraffics()
 	log.Infof("%d user traffic needs to be reported", len(userTraffics))
 	if len(userTraffics) > 0 {
-		err := s.client.Submit(api.NodeId(s.config.NodeID), api.AnyTLS, userTraffics)
+		err := s.client.Submit(s.config.RegisterID, api.AnyTLS, userTraffics)
 		if err != nil {
-			log.Errorln(err)
+			log.Errorln("report traffics task error:", err)
 			return nil
 		}
 		s.trafficManager.clear()

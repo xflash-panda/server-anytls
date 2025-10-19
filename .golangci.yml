@@ -1,0 +1,4 @@
+issues:
+  exclude-files:
+    - ^internal/pkg/proxy/session/session\.go$
+

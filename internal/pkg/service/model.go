@@ -15,4 +15,5 @@ type Config struct {
 	NodeID                int
 	FetchUserInterval     time.Duration
 	ReportTrafficInterval time.Duration
+	RegisterID            int
 }

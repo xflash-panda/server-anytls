@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"sync"
 
@@ -25,6 +26,8 @@ type Server struct {
 	anyTLSConfig *api.AnyTLSConfig
 	listener     net.Listener
 	userService  *service.UsersService
+	apiClient    *api.Client
+	registerID   int
 
 	// startup inputs
 	apiConfig     api.Config
@@ -109,6 +112,7 @@ func (s *Server) closeAllConns() int {
 func (s *Server) Start() error {
 	// 初始化依赖：API 客户端、节点配置、TLS、扩展配置、用户服务
 	apiClient := api.New(&s.apiConfig)
+	s.apiClient = apiClient
 
 	nodeConf, err := apiClient.Config(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS)
 	if err != nil {
@@ -119,6 +123,20 @@ func (s *Server) Start() error {
 		"node_id":   s.serviceConfig.NodeID,
 		"node_info": nodeConf.String(),
 	}).Info("Server configuration loaded successfully")
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+	registerID, err := apiClient.Register(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS, hostname, s.anyTLSConfig.ServerPort, "")
+	if err != nil {
+		return fmt.Errorf("failed to register node: %w", err)
+	}
+	s.registerID = registerID
+	s.serviceConfig.RegisterID = registerID
+	logrus.WithFields(logrus.Fields{
+		"register_id": registerID,
+	}).Info("Node registered successfully")
 
 	tlsConfig, err := s.certConfig.Load()
 	if err != nil {
@@ -243,6 +261,14 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	s.closeOnce.Do(func() {
+		// 优先取消注册
+		if s.registerID > 0 && s.apiClient != nil {
+			if err := s.apiClient.Unregister(api.AnyTLS, s.registerID); err != nil && s.closeErr == nil {
+				s.closeErr = fmt.Errorf("failed to unregister node: %w", err)
+			} else if err == nil {
+				logrus.WithField("register_id", s.registerID).Info("Node unregistered successfully")
+			}
+		}
 		// 取消上下文，停止新的处理
 		s.cancel()
 		// 关闭监听器，忽略重复关闭错误

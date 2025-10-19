@@ -72,7 +72,7 @@ func NewServerSession(conn net.Conn, onNewStream func(stream *Stream), _padding 
 
 func (s *Session) Run() {
 	if !s.isClient {
-		_ = s.recvLoop()
+		s.recvLoop()
 		return
 	}
 
@@ -85,8 +85,8 @@ func (s *Session) Run() {
 	f := newFrame(cmdSettings, 0)
 	f.data = settings.ToBytes()
 	s.buffering = true
-	_, _ = s.writeFrame(f)
-	go func() { _ = s.recvLoop() }()
+	s.writeFrame(f)
+	go s.recvLoop()
 }
 
 func (s *Session) IsClosed() bool {
@@ -182,7 +182,7 @@ func (s *Session) recvLoop() error {
 						stream, ok := s.streams[sid]
 						s.streamLock.RUnlock()
 						if ok {
-							_, _ = stream.pipeW.Write(buffer)
+							stream.pipeW.Write(buffer)
 						}
 						buf.Put(buffer)
 					} else {
@@ -194,7 +194,7 @@ func (s *Session) recvLoop() error {
 				if !s.isClient && !receivedSettingsFromClient {
 					f := newFrame(cmdAlert, 0)
 					f.data = []byte("client did not send its settings")
-					_, _ = s.writeFrame(f)
+					s.writeFrame(f)
 					return nil
 				}
 				s.streamLock.Lock()
@@ -227,7 +227,7 @@ func (s *Session) recvLoop() error {
 					stream, ok := s.streams[sid]
 					s.streamLock.RUnlock()
 					if ok {
-						_ = stream.CloseWithError(fmt.Errorf("remote: %s", string(buffer)))
+						stream.CloseWithError(fmt.Errorf("remote: %s", string(buffer)))
 					}
 					buf.Put(buffer)
 				}
@@ -352,10 +352,10 @@ func (s *Session) streamClosed(sid uint32) error {
 func (s *Session) writeFrame(frame frame) (int, error) {
 	dataLen := len(frame.data)
 	buffer := buf.NewSize(dataLen + headerOverHeadSize)
-	_ = buffer.WriteByte(frame.cmd)
+	buffer.WriteByte(frame.cmd)
 	binary.BigEndian.PutUint32(buffer.Extend(4), frame.sid)
 	binary.BigEndian.PutUint16(buffer.Extend(2), uint16(dataLen))
-	_, _ = buffer.Write(frame.data)
+	buffer.Write(frame.data)
 	_, err := s.writeConn(buffer.Bytes())
 	buffer.Release()
 	if err != nil {
@@ -423,7 +423,7 @@ func (s *Session) writeConn(b []byte) (n int, err error) {
 				}
 			}
 			if len(b) == 0 {
-				return n, err
+				return
 			} else {
 				n2, err := s.conn.Write(b)
 				return n + n2, err
