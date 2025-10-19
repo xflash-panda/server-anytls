@@ -51,22 +51,41 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 }
 
 func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) (*Server, error) {
-	if err := validateConfig(nodeConfig, userService, tlsConfig); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Server{
+		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
+		tlsConfig:    tlsConfig,
+		userService:  userService,
+		extConfig:    extConfig,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
+	return s, nil
+}
+
+func (s *Server) Start() error {
+	// 校验配置并完成启动期初始化
+	if err := validateConfig(s.anyTLSConfig, s.userService, s.tlsConfig); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	if s.anyTLSConfig.AllowInsecure == 1 {
+		s.tlsConfig.InsecureSkipVerify = true
+	}
+
 	var uOb outbounds.PluggableOutbound
-	if extConfig != nil {
+	if s.extConfig != nil {
 		var obs []outbounds.OutboundEntry
-		if len(extConfig.Outbounds) == 0 {
+		if len(s.extConfig.Outbounds) == 0 {
 			obs = []outbounds.OutboundEntry{{
 				Name:     "default",
 				Outbound: outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto),
 			}}
 		} else {
-			obs = make([]outbounds.OutboundEntry, len(extConfig.Outbounds))
-			for i, entry := range extConfig.Outbounds {
+			obs = make([]outbounds.OutboundEntry, len(s.extConfig.Outbounds))
+			for i, entry := range s.extConfig.Outbounds {
 				if entry.Name == "" {
-					return nil, configError{Field: "outbounds.name", Err: errors.New("empty outbound name")}
+					return configError{Field: "outbounds.name", Err: errors.New("empty outbound name")}
 				}
 				var ob outbounds.PluggableOutbound
 				var err error
@@ -81,7 +100,7 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 					err = configError{Field: "outbounds.type", Err: errors.New("unsupported outbound type")}
 				}
 				if err != nil {
-					return nil, err
+					return err
 				}
 				obs[i] = outbounds.OutboundEntry{Name: entry.Name, Outbound: ob}
 			}
@@ -94,10 +113,10 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 			DownloadErrFunc: geoDownloadErrFunc,
 		}
 
-		if len(extConfig.ACL.Inline) > 0 {
-			aclOutbound, err := outbounds.NewACLEngineFromString(strings.Join(extConfig.ACL.Inline, "\n"), obs, gLoader)
+		if len(s.extConfig.ACL.Inline) > 0 {
+			aclOutbound, err := outbounds.NewACLEngineFromString(strings.Join(s.extConfig.ACL.Inline, "\n"), obs, gLoader)
 			if err != nil {
-				return nil, configError{Field: "acl.inline", Err: err}
+				return configError{Field: "acl.inline", Err: err}
 			}
 			uOb = aclOutbound
 		} else {
@@ -106,25 +125,7 @@ func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig
 	} else {
 		uOb = outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{
-		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
-		tlsConfig:    tlsConfig,
-		userService:  userService,
-		extConfig:    extConfig,
-		ctx:          ctx,
-		cancel:       cancel,
-		outbound:     &outbounds.PluggableOutboundAdapter{PluggableOutbound: uOb},
-	}
-
-	if s.anyTLSConfig.AllowInsecure == 1 {
-		s.tlsConfig.InsecureSkipVerify = true
-	}
-	return s, nil
-}
-
-func (s *Server) Start() error {
+	s.outbound = &outbounds.PluggableOutboundAdapter{PluggableOutbound: uOb}
 	addr := fmt.Sprintf(":%d", s.anyTLSConfig.ServerPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
