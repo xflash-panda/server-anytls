@@ -1,3 +1,5 @@
+.PHONY: fmt fmt_install lint lint_install test
+
 fmt:
 	@gofumpt -l -w .
 	@gofmt -s -w .

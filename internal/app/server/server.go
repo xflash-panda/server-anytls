@@ -38,6 +38,10 @@ type Server struct {
 	cancel  context.CancelFunc
 	connsMu sync.Mutex
 	conns   map[net.Conn]struct{}
+
+	// shutdown state
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config) error {
@@ -238,17 +242,25 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Close() error {
-	s.cancel()
-	if s.listener != nil {
-		if err := s.listener.Close(); err != nil {
-			return fmt.Errorf("failed to close listener: %w", err)
+	s.closeOnce.Do(func() {
+		// 取消上下文，停止新的处理
+		s.cancel()
+		// 关闭监听器，忽略重复关闭错误
+		if s.listener != nil {
+			if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				s.closeErr = fmt.Errorf("failed to close listener: %w", err)
+			}
 		}
-	}
-	n := s.closeAllConns()
-	logrus.WithField("active_conns_closed", n).Info("closing all active connections")
-	if err := s.userService.Close(); err != nil {
-		return fmt.Errorf("failed to close user service: %w", err)
-	}
-	logrus.Info("server stopped")
-	return nil
+		// 关闭所有连接
+		n := s.closeAllConns()
+		logrus.WithField("active_conns_closed", n).Info("closing all active connections")
+		// 关闭用户服务（判空以适配启动早期失败场景）
+		if s.userService != nil {
+			if err := s.userService.Close(); err != nil && s.closeErr == nil {
+				s.closeErr = fmt.Errorf("failed to close user service: %w", err)
+			}
+		}
+		logrus.Info("server stopped")
+	})
+	return s.closeErr
 }

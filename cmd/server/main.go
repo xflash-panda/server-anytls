@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -130,46 +131,48 @@ func main() {
 			return nil
 		},
 		Action: func(c *cli.Context) error {
-			if logLevel != server.LogLevelDebug {
-				defer func() {
-					if r := recover(); r != nil {
-						log.WithField("panic", r).Error("Application panic recovered")
-						panic(r)
-					}
-				}()
-			}
-
-			srv, err := server.New(apiConfig, serviceConfig, certConfig, extConfPath)
+			var srv *server.Server
+			var err error
+			srv, err = server.New(apiConfig, serviceConfig, certConfig, extConfPath)
 			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err.Error(),
-				}).Error("Failed to create server")
-				return fmt.Errorf("failed to create server: %w", err)
+				log.WithError(err).Error("failed to init server")
+				return err
 			}
 
-			log.Infoln("Starting server...")
+			shutdown := func() {
+				log.Infoln("shutting down...")
+				if srv != nil {
+					if err := srv.Close(); err != nil {
+						log.WithError(err).Errorln("shutdown error")
+					}
+				}
+			}
 
-			// 创建一个用于等待服务器关闭的通道
-			serverDone := make(chan error, 1)
-			go func() {
-				serverDone <- srv.Start()
+			// 确保无论正常退出还是异常退出都会调用 Close
+			defer func() {
+				if e := recover(); e != nil {
+					log.Errorf("panic: %v", e)
+					buf := make([]byte, 4096)
+					n := runtime.Stack(buf, false)
+					log.Errorf("stack trace:\n%s", buf[:n])
+					shutdown()
+					os.Exit(1)
+				} else {
+					shutdown()
+				}
 			}()
 
-			// 等待信号
-			quit := make(chan os.Signal, 1)
-			signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+			osSignals := make(chan os.Signal, 1)
+			signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM)
+			go func() {
+				<-osSignals
+				shutdown()
+			}()
 
-			select {
-			case <-quit:
-				log.Info("Shutting down server...")
-				if err := srv.Close(); err != nil {
-					log.WithError(err).Error("Error stopping server")
-				}
-			case err := <-serverDone:
-				if err != nil {
-					log.WithError(err).Error("Server stopped with error")
-					return err
-				}
+			log.Infoln("Starting server...")
+			if err := srv.Start(); err != nil {
+				log.WithError(err).Error("Server stopped with error")
+				return err
 			}
 
 			return nil

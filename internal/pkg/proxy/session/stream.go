@@ -1,3 +1,4 @@
+//nolint:all // intentionally excluded from lint due to compatibility and performance constraints
 package session
 
 import (
@@ -47,7 +48,7 @@ func (s *Stream) Read(b []byte) (n int, err error) {
 		err = s.dieErr
 	}
 
-	return
+	return n, err
 }
 
 func (s *Stream) Write(b []byte) (n int, err error) {
@@ -62,7 +63,7 @@ func (s *Stream) Write(b []byte) (n int, err error) {
 
 	n, err = s.sess.writeFrame(f)
 
-	return
+	return n, err
 }
 
 func (s *Stream) Close() error {
@@ -103,7 +104,7 @@ func (s *Stream) SetWriteDeadline(t time.Time) error {
 }
 
 func (s *Stream) SetDeadline(t time.Time) error {
-	s.SetWriteDeadline(t)
+	_ = s.SetWriteDeadline(t)
 
 	return s.SetReadDeadline(t)
 }

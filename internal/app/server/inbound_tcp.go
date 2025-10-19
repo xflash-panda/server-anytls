@@ -168,7 +168,7 @@ func (c *CountedConn) Read(b []byte) (n int, err error) {
 			userService.UpdateTraffic(c.userId, uint64(n), 0, 0)
 		}
 	}
-	return
+	return n, err
 }
 
 // Write 实现了 net.Conn 接口，统计上行流量
@@ -179,5 +179,5 @@ func (c *CountedConn) Write(b []byte) (n int, err error) {
 			userService.UpdateTraffic(c.userId, 0, uint64(n), 0)
 		}
 	}
-	return
+	return n, err
 }
