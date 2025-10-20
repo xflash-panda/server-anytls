@@ -1,8 +1,8 @@
 module github.com/xflash-panda/server-anytls
 
-go 1.23.0
+go 1.24.4
 
-toolchain go1.23.10
+toolchain go1.24.9
 
 require (
 	github.com/apernet/hysteria/core/v2 v2.6.1
@@ -12,8 +12,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
 	github.com/urfave/cli/v2 v2.27.6
-	github.com/xflash-panda/server-agent-proto v0.0.4
-	github.com/xflash-panda/server-client v0.0.14
+	github.com/xflash-panda/server-agent-proto v0.1.0
+	github.com/xflash-panda/server-client v0.1.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.1
 )

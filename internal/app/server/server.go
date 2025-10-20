@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
@@ -25,6 +26,7 @@ type Server struct {
 	extConfig    *ExtConfig
 	outbound     C.Outbound
 	opts         *Options
+	registerID   int32
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -117,6 +119,16 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Close() error {
+	// Unregister first with agent to prioritize deregistration
+	if s.opts != nil && s.opts.AgentClient != nil && s.registerID > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
+		defer cancel()
+		if _, err := s.opts.AgentClient.Unregister(ctx, &pb.UnregisterRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID}); err != nil {
+			logrus.WithError(err).Warn("failed to unregister with agent")
+		} else {
+			logrus.Info("unregistered from agent")
+		}
+	}
 	s.cancel()
 	if s.listener != nil {
 		if err := s.listener.Close(); err != nil {

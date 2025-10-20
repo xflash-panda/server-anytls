@@ -23,7 +23,12 @@ type UsersService struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	updateMutex    sync.Mutex
-	lastUsersHash  string
+	registerID     int32
+}
+
+// SetRegisterInfo sets the register id for agent communication
+func (s *UsersService) SetRegisterInfo(registerID int32) {
+	s.registerID = registerID
 }
 
 func NewUsersService(config *Config, client pb.AgentClient) *UsersService {
@@ -35,17 +40,24 @@ func NewUsersService(config *Config, client pb.AgentClient) *UsersService {
 		trafficManager: newTrafficManager(),
 		ctx:            ctx,
 		cancel:         cancel,
+		registerID:     0,
 	}
 }
 
 func (s *UsersService) init() error {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
-	r, err := s.client.Users(ctx, &pb.UsersRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}})
+	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID})
 	if err != nil {
 		return err
 	}
-	userList, err := api.UnmarshalUsers(r.GetRawData())
+	raw := r.GetRawData()
+	if len(raw) == 0 {
+		// Keep existing user list unchanged when agent returns empty data
+		log.Infoln("init users: raw data is empty, keep current users")
+		return nil
+	}
+	userList, err := api.UnmarshalUsers(raw)
 	if err != nil {
 		return err
 	}
@@ -144,22 +156,20 @@ func (s *UsersService) FetchUsersTask() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
-	r, err := s.client.Users(ctx, &pb.UsersRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}, Hash: &s.lastUsersHash})
+	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID})
 	if err != nil {
-		log.Errorln(err)
+		log.Errorln("fetch users error:", err)
 		return nil
 	}
-
-	if r.GetStatus() == pb.ChangeStatus_NOT_CHANGED {
-		log.Infoln("users not modified")
+	raw := r.GetRawData()
+	if len(raw) == 0 {
+		log.Infoln("users raw data is empty, no changes")
 		return nil
 	}
-
-	s.lastUsersHash = r.GetHash()
-	newUserList, err := api.UnmarshalUsers(r.GetRawData())
+	newUserList, err := api.UnmarshalUsers(raw)
 	if err != nil {
-		log.Errorln(err)
-		return err
+		log.Errorln("unmarshal users error", err)
+		return nil
 	}
 
 	deleted, added := s.compareUserList(newUserList)
@@ -190,7 +200,7 @@ func (s *UsersService) ReportTrafficsTask() error {
 	if len(statsRawResult.Data) > 0 || len(trafficsRawResult.Data) > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 		defer cancel()
-		_, err := s.client.Submit(ctx, &pb.SubmitRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}, RawData: trafficsRawResult.Data, RawStats: statsRawResult.Data})
+		_, err := s.client.Submit(ctx, &pb.SubmitRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID, RawData: trafficsRawResult.Data, RawStats: statsRawResult.Data})
 		if err != nil {
 			log.Errorln(err)
 		}
@@ -204,7 +214,7 @@ func (s *UsersService) HeartBeatTask() error {
 	defer cancel()
 
 	log.Infoln("heartbeat...")
-	_, err := s.client.Heartbeat(ctx, &pb.HeartbeatRequest{Params: &pb.CommonParams{NodeId: int32(s.config.NodeID), NodeType: pb.NodeType_ANYTLS}})
+	_, err := s.client.Heartbeat(ctx, &pb.HeartbeatRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID})
 	if err != nil {
 		log.Errorln(err)
 		return nil
