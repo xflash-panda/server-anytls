@@ -6,6 +6,8 @@ import (
 	"time"
 
 	C "github.com/apernet/hysteria/core/v2/server"
+	pb "github.com/xflash-panda/server-agent-proto/pkg"
+	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 )
 
 const (
@@ -71,6 +73,15 @@ type serverConfigOutboundSOCKS5 struct {
 type serverConfigOutboundHTTP struct {
 	URL      string `mapstructure:"url"`
 	Insecure bool   `mapstructure:"insecure"`
+}
+
+// Options contains inputs required for Server to initialize its
+// configuration and dependencies during Start.
+type Options struct {
+	AgentClient   pb.AgentClient
+	ServiceConfig *service.Config
+	CertConfig    CertConfig
+	ExtConfPath   string
 }
 
 // func geoDownloadFunc(filename, url string) {

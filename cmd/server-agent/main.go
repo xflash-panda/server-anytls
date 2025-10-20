@@ -1,21 +1,19 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/app/server"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
-	api "github.com/xflash-panda/server-client/pkg"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -158,15 +156,8 @@ func main() {
 			return nil
 		},
 		Action: func(c *cli.Context) error {
-			if logLevel != server.LogLevelDebug {
-				defer func() {
-					if r := recover(); r != nil {
-						log.WithField("panic", r).Error("Application panic recovered")
-						panic(r)
-					}
-				}()
-			}
-
+			var srv *server.Server
+			var err error
 			agentAddr := fmt.Sprintf("%s:%d", agentHost, agentPort)
 			agentConn, err := grpc.NewClient(agentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(
 				keepalive.ClientParameters{
@@ -180,38 +171,13 @@ func main() {
 			agentClient := pb.NewAgentClient(agentConn)
 			defer agentConn.Close()
 
-			ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
-			defer cancel()
-
-			r, err := agentClient.Config(ctx, &pb.ConfigRequest{Params: &pb.CommonParams{NodeId: int32(serviceConfig.NodeID), NodeType: pb.NodeType_ANYTLS}})
-			if err != nil {
-				return err
+			opts := &server.Options{
+				AgentClient:   agentClient,
+				ServiceConfig: &serviceConfig,
+				CertConfig:    certConfig,
+				ExtConfPath:   extConfPath,
 			}
-
-			anytlsConfig, err := api.UnmarshalAnyTLSConfig(r.GetRawData())
-			if err != nil {
-				return err
-			}
-
-			tlsConfig, err := certConfig.Load()
-			if err != nil {
-				log.WithError(err).Error("Failed to load TLS configuration")
-				return fmt.Errorf("failed to load TLS config: %w", err)
-			}
-
-			var extConfig *server.ExtConfig
-			if extConfPath != "" {
-				viper.SetConfigFile(extConfPath)
-				if err := viper.ReadInConfig(); err != nil {
-					return fmt.Errorf("failed to read ext config: %w", err)
-				}
-
-				if err := viper.Unmarshal(&extConfig); err != nil {
-					return fmt.Errorf("failed to unmarshal ext config: %w", err)
-				}
-			}
-			userService := service.NewUsersService(&serviceConfig, agentClient)
-			srv, err := server.New(anytlsConfig, userService, tlsConfig, extConfig)
+			srv, err = server.New(opts)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err.Error(),
@@ -221,29 +187,41 @@ func main() {
 
 			log.Infoln("Starting server...")
 
-			// 创建一个用于等待服务器关闭的通道
-			serverDone := make(chan error, 1)
-			go func() {
-				serverDone <- srv.Start()
-			}()
-
-			// 等待信号
-			quit := make(chan os.Signal, 1)
-			signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-
-			select {
-			case <-quit:
-				log.Info("Shutting down server...")
-				if err := srv.Close(); err != nil {
-					log.WithError(err).Error("Error stopping server")
-				}
-			case err := <-serverDone:
-				if err != nil {
-					log.WithError(err).Error("Server stopped with error")
-					return err
+			shutdown := func() {
+				log.Infoln("shutting down...")
+				if srv != nil {
+					if err := srv.Close(); err != nil {
+						log.WithError(err).Errorln("shutdown error")
+					}
 				}
 			}
 
+			// 确保无论正常退出还是异常退出都会调用 Close
+			defer func() {
+				if e := recover(); e != nil {
+					log.Errorf("panic: %v", e)
+					buf := make([]byte, 4096)
+					n := runtime.Stack(buf, false)
+					log.Errorf("stack trace:\n%s", buf[:n])
+					shutdown()
+					os.Exit(1)
+				} else {
+					shutdown()
+				}
+			}()
+
+			osSignals := make(chan os.Signal, 1)
+			signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM)
+			go func() {
+				<-osSignals
+				shutdown()
+			}()
+
+			log.Infoln("Starting server...")
+			if err := srv.Start(); err != nil {
+				log.WithError(err).Error("Server stopped with error")
+				return err
+			}
 			return nil
 		},
 	}

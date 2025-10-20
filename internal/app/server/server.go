@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	api "github.com/xflash-panda/server-client/pkg"
 
 	C "github.com/apernet/hysteria/core/v2/server"
-	"github.com/apernet/hysteria/extras/v2/outbounds"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,6 +24,7 @@ type Server struct {
 	userService  *service.UsersService
 	extConfig    *ExtConfig
 	outbound     C.Outbound
+	opts         *Options
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -48,78 +47,32 @@ func validateConfig(anyTLSConfig *api.AnyTLSConfig, userService *service.UsersSe
 	return nil
 }
 
-func New(nodeConfig api.NodeConfig, userService *service.UsersService, tlsConfig *tls.Config, extConfig *ExtConfig) (*Server, error) {
+func New(opts *Options) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		anyTLSConfig: nodeConfig.(*api.AnyTLSConfig),
-		tlsConfig:    tlsConfig,
-		userService:  userService,
-		extConfig:    extConfig,
-		ctx:          ctx,
-		cancel:       cancel,
+		opts:   opts,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	return s, nil
 }
 
 func (s *Server) Start() error {
+	// Initialize configuration and services if not initialized yet
+	if s.anyTLSConfig == nil || s.tlsConfig == nil || s.userService == nil {
+		if err := s.initializeFromOptions(); err != nil {
+			return err
+		}
+	}
+
 	if err := validateConfig(s.anyTLSConfig, s.userService, s.tlsConfig); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	// Build outbound and ACL engine
-	var uOb outbounds.PluggableOutbound
-	if s.extConfig != nil {
-		var obs []outbounds.OutboundEntry
-		if len(s.extConfig.Outbounds) == 0 {
-			obs = []outbounds.OutboundEntry{{
-				Name:     "default",
-				Outbound: outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto),
-			}}
-		} else {
-			obs = make([]outbounds.OutboundEntry, len(s.extConfig.Outbounds))
-			for i, entry := range s.extConfig.Outbounds {
-				if entry.Name == "" {
-					return configError{Field: "outbounds.name", Err: errors.New("empty outbound name")}
-				}
-				var ob outbounds.PluggableOutbound
-				var err error
-				switch strings.ToLower(entry.Type) {
-				case "direct":
-					ob, err = serverConfigOutboundDirectToOutbound(entry.Direct)
-				case "socks5":
-					ob, err = serverConfigOutboundSOCKS5ToOutbound(entry.SOCKS5)
-				case "http":
-					ob, err = serverConfigOutboundHTTPToOutbound(entry.HTTP)
-				default:
-					err = configError{Field: "outbounds.type", Err: errors.New("unsupported outbound type")}
-				}
-				if err != nil {
-					return err
-				}
-				obs[i] = outbounds.OutboundEntry{Name: entry.Name, Outbound: ob}
-			}
-		}
-		gLoader := &GeoLoader{
-			GeoIPFilename:   "",
-			GeoSiteFilename: "",
-			UpdateInterval:  geoDefaultUpdateInterval,
-			DownloadFunc:    geoDownloadFunc,
-			DownloadErrFunc: geoDownloadErrFunc,
-		}
-
-		if len(s.extConfig.ACL.Inline) > 0 {
-			aclOutbound, err := outbounds.NewACLEngineFromString(strings.Join(s.extConfig.ACL.Inline, "\n"), obs, gLoader)
-			if err != nil {
-				return configError{Field: "acl.inline", Err: err}
-			}
-			uOb = aclOutbound
-		} else {
-			uOb = obs[0].Outbound
-		}
-	} else {
-		uOb = outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto)
+	if err := s.buildOutbound(); err != nil {
+		return err
 	}
-	s.outbound = &outbounds.PluggableOutboundAdapter{PluggableOutbound: uOb}
 
 	if s.anyTLSConfig.AllowInsecure == 1 {
 		s.tlsConfig.InsecureSkipVerify = true
