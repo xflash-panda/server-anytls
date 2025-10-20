@@ -224,7 +224,7 @@ func main() {
 			// 创建一个用于等待服务器关闭的通道
 			serverDone := make(chan error, 1)
 			go func() {
-				serverDone <- srv.Run()
+				serverDone <- srv.Start()
 			}()
 
 			// 等待信号
@@ -234,7 +234,7 @@ func main() {
 			select {
 			case <-quit:
 				log.Info("Shutting down server...")
-				if err := srv.Stop(); err != nil {
+				if err := srv.Close(); err != nil {
 					log.WithError(err).Error("Error stopping server")
 				}
 			case err := <-serverDone:
