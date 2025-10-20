@@ -103,8 +103,6 @@ func (s *Stream) SetWriteDeadline(t time.Time) error {
 }
 
 func (s *Stream) SetDeadline(t time.Time) error {
-	s.SetWriteDeadline(t)
-
 	return s.SetReadDeadline(t)
 }
 
