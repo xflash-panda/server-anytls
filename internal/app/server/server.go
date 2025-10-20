@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
@@ -37,10 +38,9 @@ type Server struct {
 	extConfig     *ExtConfig
 	outbound      C.Outbound
 	// 服务器状态
-	ctx     context.Context
-	cancel  context.CancelFunc
-	connsMu sync.Mutex
-	conns   map[net.Conn]struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 
 	// shutdown state
 	closeOnce sync.Once
@@ -76,37 +76,6 @@ func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConf
 		cancel:        cancel,
 	}
 	return s, nil
-}
-
-// 连接注册表：添加连接
-func (s *Server) addConn(c net.Conn) {
-	s.connsMu.Lock()
-	if s.conns == nil {
-		s.conns = make(map[net.Conn]struct{})
-	}
-	s.conns[c] = struct{}{}
-	s.connsMu.Unlock()
-}
-
-// 连接注册表：移除连接
-func (s *Server) removeConn(c net.Conn) {
-	s.connsMu.Lock()
-	delete(s.conns, c)
-	s.connsMu.Unlock()
-}
-
-// 关闭所有活动连接，返回尝试关闭的数量
-func (s *Server) closeAllConns() int {
-	s.connsMu.Lock()
-	conns := make([]net.Conn, 0, len(s.conns))
-	for c := range s.conns {
-		conns = append(conns, c)
-	}
-	s.connsMu.Unlock()
-	for _, c := range conns {
-		_ = c.Close()
-	}
-	return len(conns)
 }
 
 func (s *Server) Start() error {
@@ -251,9 +220,9 @@ func (s *Server) Start() error {
 			logrus.WithError(err).Error("failed to accept connection")
 			continue
 		}
-		s.addConn(conn)
+		s.wg.Add(1)
 		go func(c net.Conn) {
-			defer s.removeConn(c)
+			defer s.wg.Done()
 			handleTcpConnection(s.ctx, c, s)
 		}(conn)
 	}
@@ -278,8 +247,17 @@ func (s *Server) Close() error {
 			}
 		}
 		// 关闭所有连接
-		n := s.closeAllConns()
-		logrus.WithField("active_conns_closed", n).Info("closing all active connections")
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			logrus.Info("all connections closed")
+		case <-time.After(30 * time.Second):
+			logrus.Warn("timeout waiting for connections to close")
+		}
 		// 关闭用户服务（判空以适配启动早期失败场景）
 		if s.userService != nil {
 			if err := s.userService.Close(); err != nil && s.closeErr == nil {
