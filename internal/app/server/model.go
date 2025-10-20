@@ -5,9 +5,10 @@ import (
 	"net"
 	"time"
 
-	C "github.com/apernet/hysteria/core/v2/server"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
+
+	C "github.com/apernet/hysteria/core/v2/server"
 )
 
 const (

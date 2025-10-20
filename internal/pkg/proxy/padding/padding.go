@@ -93,5 +93,5 @@ func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int)
 			}
 		}
 	}
-	return
+	return pktSizes
 }

@@ -47,7 +47,7 @@ func (s *Stream) Read(b []byte) (n int, err error) {
 		err = s.dieErr
 	}
 
-	return
+	return n, err
 }
 
 func (s *Stream) Write(b []byte) (n int, err error) {
@@ -62,7 +62,7 @@ func (s *Stream) Write(b []byte) (n int, err error) {
 
 	n, err = s.sess.writeFrame(f)
 
-	return
+	return n, err
 }
 
 func (s *Stream) Close() error {

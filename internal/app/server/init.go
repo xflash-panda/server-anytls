@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/viper"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
+
+	"github.com/spf13/viper"
 )
 
 // initializeFromOptions fills server config and dependencies using Options when
