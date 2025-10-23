@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.1.0"
+	Version   = "0.1.1"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -41,18 +42,6 @@ func main() {
 		Usage:     "Provide anytls service for the v2Board(XFLASH-PANDA)",
 		ErrWriter: io.Discard,
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "version",
-				Aliases: []string{"V"},
-				Usage:   "print only the version",
-				Action: func(c *cli.Context, b bool) error {
-					if b {
-						fmt.Printf("version=%s\n", Version)
-						os.Exit(0)
-					}
-					return nil
-				},
-			},
 			&cli.StringFlag{
 				Name:        "server_host, sh",
 				Value:       "127.0.0.1",
@@ -187,13 +176,22 @@ func main() {
 
 			log.Infoln("Starting server...")
 
+			var shutdownOnce sync.Once
 			shutdown := func() {
-				log.Infoln("shutting down...")
-				if srv != nil {
-					if err := srv.Close(); err != nil {
-						log.WithError(err).Errorln("shutdown error")
+				shutdownOnce.Do(func() {
+					log.Infoln("shutting down...")
+					if srv != nil {
+						if err := srv.Close(); err != nil {
+							log.WithError(err).Errorln("shutdown error")
+						}
 					}
-				}
+
+					if agentConn != nil {
+						if err := agentConn.Close(); err != nil {
+							log.WithError(err).Errorln("agent connection close error")
+						}
+					}
+				})
 			}
 
 			// 确保无论正常退出还是异常退出都会调用 Close

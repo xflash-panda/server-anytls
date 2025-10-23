@@ -46,16 +46,8 @@ func (s *Server) initializeFromOptions() error {
 	if err != nil {
 		return fmt.Errorf("failed to register node: %w", err)
 	}
-	if !regResp.GetResult() {
-		return fmt.Errorf("register node failed")
-	}
 	// Capture register ID from response and store on Server
-	// Prefer GetRegisterId if available; fallback to GetId for compatibility
-	if getter, ok := interface{}(regResp).(interface{ GetRegisterId() int32 }); ok {
-		s.registerID = getter.GetRegisterId()
-	} else if getter2, ok2 := interface{}(regResp).(interface{ GetId() int32 }); ok2 {
-		s.registerID = getter2.GetId()
-	}
+	s.registerID = regResp.GetRegisterId()
 
 	// Load TLS config
 	tlsCfg, err := s.opts.CertConfig.Load()

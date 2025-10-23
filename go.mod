@@ -12,7 +12,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
 	github.com/urfave/cli/v2 v2.27.6
-	github.com/xflash-panda/server-agent-proto v0.1.0
+	github.com/xflash-panda/server-agent-proto v0.0.5
 	github.com/xflash-panda/server-client v0.1.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.1
