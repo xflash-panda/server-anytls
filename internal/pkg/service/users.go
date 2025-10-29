@@ -37,7 +37,7 @@ func NewUsersService(config *Config, client *api.Client) *UsersService {
 }
 
 func (s *UsersService) init() error {
-	if s.config.RegisterID <= 0 {
+	if s.config.RegisterID == "" {
 		return errors.New("register id is not set")
 	}
 	userList, err := s.client.Users(s.config.RegisterID, api.AnyTLS)

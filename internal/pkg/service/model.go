@@ -16,5 +16,5 @@ type Config struct {
 	FetchUserInterval     time.Duration
 	ReportTrafficInterval time.Duration
 	HeartbeatInterval     time.Duration
-	RegisterID            int
+	RegisterID            string
 }

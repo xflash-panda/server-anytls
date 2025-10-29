@@ -28,7 +28,7 @@ type Server struct {
 	listener     net.Listener
 	userService  *service.UsersService
 	apiClient    *api.Client
-	registerID   int
+	registerID   string
 
 	// startup inputs
 	apiConfig     api.Config
@@ -231,7 +231,7 @@ func (s *Server) Start() error {
 func (s *Server) Close() error {
 	s.closeOnce.Do(func() {
 		// 优先取消注册
-		if s.registerID > 0 && s.apiClient != nil {
+		if s.registerID != "" && s.apiClient != nil {
 			if err := s.apiClient.Unregister(api.AnyTLS, s.registerID); err != nil && s.closeErr == nil {
 				s.closeErr = fmt.Errorf("failed to unregister node: %w", err)
 			} else if err == nil {

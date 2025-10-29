@@ -75,8 +75,8 @@ github.com/txthinking/socks5 v0.0.0-20251011041537-5c31f201a10e h1:xA7GVlbz6teIF
 github.com/txthinking/socks5 v0.0.0-20251011041537-5c31f201a10e/go.mod h1:ntmMHL/xPq1WLeKiw8p/eRATaae6PiVRNipHFJxI8PM=
 github.com/urfave/cli/v2 v2.27.7 h1:bH59vdhbjLv3LAvIu6gd0usJHgoTTPhCFib8qqOwXYU=
 github.com/urfave/cli/v2 v2.27.7/go.mod h1:CyNAG/xg+iAOg0N4MPGZqVmv2rCoP267496AOXUZjA4=
-github.com/xflash-panda/server-client v0.1.0 h1:I8rrx/yxQwWtZwJ9bdsfOIM+ZJSXCMkdudtDusTLAOc=
-github.com/xflash-panda/server-client v0.1.0/go.mod h1:L0RRWwQct2GUm8ebkKo1j7wPNw5NGlK6h4xZPNreexQ=
+github.com/xflash-panda/server-client v0.1.1 h1:y0o+8bOacI3LaQ1lhuVjvRCS3Wu3HEWjoikP35vOV7g=
+github.com/xflash-panda/server-client v0.1.1/go.mod h1:L0RRWwQct2GUm8ebkKo1j7wPNw5NGlK6h4xZPNreexQ=
 github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 h1:FnBeRrxr7OU4VvAzt5X7s6266i6cSVkkFPS0TuXWbIg=
 github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342/go.mod h1:Ohn+xnUBiLI6FVj/9LpzZWtj1/D6lUovWYBkxHVV3aM=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
