@@ -19,7 +19,7 @@ import (
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.1.0"
+	Version   = "0.1.1"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -29,6 +29,7 @@ func main() {
 	var certConfig server.CertConfig
 	var logLevel string
 	var extConfPath string
+	var dataDir string
 
 	app := &cli.App{
 		Name:      Name,
@@ -118,6 +119,15 @@ func main() {
 				Destination: &logLevel,
 				Required:    false,
 			},
+			&cli.StringFlag{
+				Name:        "data_dir",
+				Usage:       "Data directory for persisting state and other data",
+				EnvVars:     []string{"X_PANDA_ANYTLS_DATA_DIR", "DATA_DIR"},
+				Value:       "/tmp/anytls-node",
+				DefaultText: "/tmp/anytls-node",
+				Required:    false,
+				Destination: &dataDir,
+			},
 		},
 		Before: func(c *cli.Context) error {
 			log.SetFormatter(&log.TextFormatter{
@@ -142,7 +152,7 @@ func main() {
 		Action: func(c *cli.Context) error {
 			var srv *server.Server
 			var err error
-			srv, err = server.New(apiConfig, serviceConfig, certConfig, extConfPath)
+			srv, err = server.New(apiConfig, serviceConfig, certConfig, extConfPath, dataDir)
 			if err != nil {
 				log.WithError(err).Error("failed to init server")
 				return err

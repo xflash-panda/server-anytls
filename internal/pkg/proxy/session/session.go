@@ -423,7 +423,7 @@ func (s *Session) writeConn(b []byte) (n int, err error) {
 				}
 			}
 			if len(b) == 0 {
-				return
+				return n, err
 			} else {
 				n2, err := s.conn.Write(b)
 				return n + n2, err

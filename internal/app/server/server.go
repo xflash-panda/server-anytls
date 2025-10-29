@@ -37,6 +37,7 @@ type Server struct {
 	extConfPath   string
 	extConfig     *ExtConfig
 	outbound      C.Outbound
+	dataDir       string // 数据文件目录
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -65,13 +66,17 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	return nil
 }
 
-func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConfig, extConfPath string) (*Server, error) {
+func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConfig, extConfPath string, dataDir string) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	if dataDir == "" {
+		dataDir = DefaultDataDir
+	}
 	s := &Server{
 		apiConfig:     apiConfig,
 		serviceConfig: serviceConfig,
 		certConfig:    certConfig,
 		extConfPath:   extConfPath,
+		dataDir:       dataDir,
 		ctx:           ctx,
 		cancel:        cancel,
 	}
@@ -83,6 +88,21 @@ func (s *Server) Start() error {
 	apiClient := api.New(&s.apiConfig)
 	s.apiClient = apiClient
 
+	// 获取主机名
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+
+	// 尝试加载已保存的状态
+	var registerID string
+	savedState, err := LoadState(s.dataDir)
+	if err != nil {
+		logrus.Warnf("failed to load state: %s", err)
+	}
+
+	// 第一步：先获取节点配置信息
+	logrus.Infof("Fetching node config for NodeID: %d", s.serviceConfig.NodeID)
 	nodeConf, err := apiClient.Config(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS)
 	if err != nil {
 		return fmt.Errorf("failed to get node config: %w", err)
@@ -93,14 +113,53 @@ func (s *Server) Start() error {
 		"node_info": nodeConf.String(),
 	}).Info("Server configuration loaded successfully")
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		return fmt.Errorf("failed to get hostname: %w", err)
+	// 第二步：验证并复用已保存的 register_id
+	if savedState != nil && savedState.RegisterID != "" && savedState.NodeID == s.serviceConfig.NodeID {
+		logrus.Infof("Found saved registerID: %s, verifying...", savedState.RegisterID)
+
+		// 调用 Verify 接口验证 register_id 是否有效
+		isValid, err := apiClient.Verify(savedState.RegisterID, api.AnyTLS)
+		if err != nil {
+			logrus.Warnf("failed to verify registerID: %s, will re-register", err)
+			// 验证失败，清空状态文件
+			if clearErr := ClearState(s.dataDir); clearErr != nil {
+				logrus.Warnf("failed to clear state: %s", clearErr)
+			}
+		} else if isValid {
+			// register_id 仍然有效，直接复用
+			logrus.Infof("registerID is valid, reusing it")
+			registerID = savedState.RegisterID
+		} else {
+			// register_id 无效，清空状态文件
+			logrus.Infof("registerID is invalid, will re-register")
+			if clearErr := ClearState(s.dataDir); clearErr != nil {
+				logrus.Warnf("failed to clear state: %s", clearErr)
+			}
+		}
 	}
-	registerID, err := apiClient.Register(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS, hostname, s.anyTLSConfig.ServerPort, "")
-	if err != nil {
-		return fmt.Errorf("failed to register node: %w", err)
+
+	// 第三步：如果没有有效的 register_id，则进行注册
+	if registerID == "" {
+		logrus.Infof("Registering node with hostname: %s, ServerPort: %d", hostname, s.anyTLSConfig.ServerPort)
+		registerID, err = apiClient.Register(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS, hostname, s.anyTLSConfig.ServerPort, "")
+		if err != nil {
+			return fmt.Errorf("failed to register node: %w", err)
+		}
+		logrus.Infof("Registered with server, registerID: %s", registerID)
+
+		// 注册成功后保存状态
+		newState := &State{
+			RegisterID: registerID,
+			NodeID:     s.serviceConfig.NodeID,
+			Hostname:   hostname,
+		}
+		if saveErr := SaveState(s.dataDir, newState); saveErr != nil {
+			logrus.Warnf("failed to save state: %s", saveErr)
+			// 不返回错误，因为注册成功了
+		}
 	}
+
+	// 注册成功后立即保存到Server结构中，这样即使后续步骤失败，Close()也能取消注册
 	s.registerID = registerID
 	s.serviceConfig.RegisterID = registerID
 	logrus.WithFields(logrus.Fields{
@@ -236,6 +295,10 @@ func (s *Server) Close() error {
 				s.closeErr = fmt.Errorf("failed to unregister node: %w", err)
 			} else if err == nil {
 				logrus.WithField("register_id", s.registerID).Info("Node unregistered successfully")
+				// 取消注册成功后，清空状态文件
+				if clearErr := ClearState(s.dataDir); clearErr != nil {
+					logrus.Warnf("failed to clear state after unregister: %s", clearErr)
+				}
 			}
 		}
 		// 取消上下文，停止新的处理
