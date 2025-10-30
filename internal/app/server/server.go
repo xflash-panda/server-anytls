@@ -26,7 +26,7 @@ type Server struct {
 	extConfig    *ExtConfig
 	outbound     C.Outbound
 	opts         *Options
-	registerID   int32
+	registerID   string
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -120,7 +120,7 @@ func (s *Server) Start() error {
 
 func (s *Server) Close() error {
 	// Unregister first with agent to prioritize deregistration
-	if s.opts != nil && s.opts.AgentClient != nil && s.registerID > 0 {
+	if s.opts != nil && s.opts.AgentClient != nil && s.registerID != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
 		defer cancel()
 		if _, err := s.opts.AgentClient.Unregister(ctx, &pb.UnregisterRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID}); err != nil {

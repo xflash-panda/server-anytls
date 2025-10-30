@@ -23,11 +23,11 @@ type UsersService struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	updateMutex    sync.Mutex
-	registerID     int32
+	registerID     string
 }
 
 // SetRegisterInfo sets the register id for agent communication
-func (s *UsersService) SetRegisterInfo(registerID int32) {
+func (s *UsersService) SetRegisterInfo(registerID string) {
 	s.registerID = registerID
 }
 
@@ -40,7 +40,7 @@ func NewUsersService(config *Config, client pb.AgentClient) *UsersService {
 		trafficManager: newTrafficManager(),
 		ctx:            ctx,
 		cancel:         cancel,
-		registerID:     0,
+		registerID:     "",
 	}
 }
 
