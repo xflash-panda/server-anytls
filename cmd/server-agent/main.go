@@ -23,7 +23,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.1.1"
+	Version   = "0.1.2"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -34,6 +34,7 @@ func main() {
 	var certConfig server.CertConfig
 	var logLevel string
 	var extConfPath string
+	var dataDir string
 
 	app := &cli.App{
 		Name:      Name,
@@ -123,6 +124,14 @@ func main() {
 				Destination: &logLevel,
 				Required:    false,
 			},
+			&cli.StringFlag{
+				Name:        "data_dir",
+				Value:       server.DefaultDataDir,
+				Usage:       "data directory for storing state",
+				EnvVars:     []string{"X_PANDA_ANYTLS_DATA_DIR", "DATA_DIR"},
+				Destination: &dataDir,
+				Required:    false,
+			},
 		},
 		Before: func(c *cli.Context) error {
 			log.SetFormatter(&log.TextFormatter{
@@ -165,6 +174,7 @@ func main() {
 				ServiceConfig: &serviceConfig,
 				CertConfig:    certConfig,
 				ExtConfPath:   extConfPath,
+				DataDir:       dataDir,
 			}
 			srv, err = server.New(opts)
 			if err != nil {

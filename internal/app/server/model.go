@@ -83,6 +83,7 @@ type Options struct {
 	ServiceConfig *service.Config
 	CertConfig    CertConfig
 	ExtConfPath   string
+	DataDir       string
 }
 
 // func geoDownloadFunc(filename, url string) {

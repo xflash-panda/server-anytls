@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -59,7 +61,86 @@ func New(opts *Options) (*Server, error) {
 	return s, nil
 }
 
+// checkAndRegister checks if registration is needed and performs registration if necessary.
+// Returns the register ID to use (either from existing state or newly registered).
+func (s *Server) checkAndRegister() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
+	defer cancel()
+
+	// Try to load existing state
+	existingState, err := LoadState(s.opts.DataDir)
+	if err != nil {
+		logrus.WithError(err).Warn("failed to load state")
+	}
+
+	// Check if we need to re-register (no existing state or node ID changed)
+	hostName, _ := os.Hostname()
+	needRegister := existingState == nil ||
+		existingState.RegisterID == ""
+
+	if !needRegister {
+		// Use existing register ID from state
+		logrus.WithFields(logrus.Fields{
+			"register_id": existingState.RegisterID,
+			"node_id":     existingState.NodeID,
+			"hostname":    existingState.Hostname,
+		}).Info("loaded register ID from state")
+		return existingState.RegisterID, nil
+	}
+
+	// Need to register - first fetch config to get server port
+	r, err := s.opts.AgentClient.Config(ctx, &pb.ConfigRequest{NodeId: int32(s.opts.ServiceConfig.NodeID), NodeType: pb.NodeType_ANYTLS})
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch config from agent: %w", err)
+	}
+	nodeCfg, err := api.UnmarshalAnyTLSConfig(r.GetRawData())
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal node config: %w", err)
+	}
+
+	// Register node to get register_id (agent internally manages register mapping)
+	portStr := strconv.Itoa(nodeCfg.ServerPort)
+	ipStr := ""
+	regResp, err := s.opts.AgentClient.Register(ctx, &pb.RegisterRequest{
+		NodeId:   int32(s.opts.ServiceConfig.NodeID),
+		NodeType: pb.NodeType_ANYTLS,
+		HostName: hostName,
+		Port:     portStr,
+		Ip:       ipStr,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to register node: %w", err)
+	}
+
+	registerID := regResp.GetRegisterId()
+
+	// Save state
+	newState := &State{
+		RegisterID: registerID,
+		NodeID:     s.opts.ServiceConfig.NodeID,
+		Hostname:   hostName,
+	}
+	if err := SaveState(s.opts.DataDir, newState); err != nil {
+		logrus.WithError(err).Warn("failed to save state")
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"register_id": registerID,
+			"node_id":     s.opts.ServiceConfig.NodeID,
+			"hostname":    hostName,
+		}).Info("saved state after registration")
+	}
+
+	return registerID, nil
+}
+
 func (s *Server) Start() error {
+	// Check and register first (independent of service initialization)
+	registerID, err := s.checkAndRegister()
+	if err != nil {
+		return err
+	}
+	s.registerID = registerID
+
 	// Initialize configuration and services if not initialized yet
 	if s.anyTLSConfig == nil || s.tlsConfig == nil || s.userService == nil {
 		if err := s.initializeFromOptions(); err != nil {
@@ -127,6 +208,10 @@ func (s *Server) Close() error {
 			logrus.WithError(err).Warn("failed to unregister with agent")
 		} else {
 			logrus.Info("unregistered from agent")
+			// Clear state after successful unregister
+			if err := ClearState(s.opts.DataDir); err != nil {
+				logrus.WithError(err).Warn("failed to clear state")
+			}
 		}
 	}
 	s.cancel()

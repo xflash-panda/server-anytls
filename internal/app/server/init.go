@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
@@ -19,6 +17,7 @@ func (s *Server) initializeFromOptions() error {
 	if s.opts == nil {
 		return fmt.Errorf("missing server options for initialization")
 	}
+
 	// Fetch node configuration from agent
 	ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
 	defer cancel()
@@ -31,23 +30,6 @@ func (s *Server) initializeFromOptions() error {
 		return fmt.Errorf("failed to unmarshal node config: %w", err)
 	}
 	s.anyTLSConfig = nodeCfg
-
-	// Register node to get register_id (agent internally manages register mapping)
-	hostName, _ := os.Hostname()
-	portStr := strconv.Itoa(s.anyTLSConfig.ServerPort)
-	ipStr := ""
-	regResp, err := s.opts.AgentClient.Register(ctx, &pb.RegisterRequest{
-		NodeId:   int32(s.opts.ServiceConfig.NodeID),
-		NodeType: pb.NodeType_ANYTLS,
-		HostName: hostName,
-		Port:     portStr,
-		Ip:       ipStr,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to register node: %w", err)
-	}
-	// Capture register ID from response and store on Server
-	s.registerID = regResp.GetRegisterId()
 
 	// Load TLS config
 	tlsCfg, err := s.opts.CertConfig.Load()
