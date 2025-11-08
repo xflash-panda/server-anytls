@@ -100,23 +100,12 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 	}
 
 	stream.dieHook = func() {
+		// If Session is not closed, put this Stream to pool
 		if !session.IsClosed() {
-			select {
-
-			case <-c.die.Done():
-
-				go session.Close()
-
-			default:
-
-				c.idleSessionLock.Lock()
-
-				session.idleSince = time.Now()
-
-				c.idleSession.Insert(math.MaxUint64-session.seq, session)
-
-				c.idleSessionLock.Unlock()
-			}
+			c.idleSessionLock.Lock()
+			session.idleSince = time.Now()
+			c.idleSession.Insert(math.MaxUint64-session.seq, session)
+			c.idleSessionLock.Unlock()
 		}
 	}
 
