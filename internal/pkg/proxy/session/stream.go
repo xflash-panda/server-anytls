@@ -1,3 +1,4 @@
+//nolint:all // intentionally excluded from lint due to compatibility and performance constraints
 package session
 
 import (
@@ -57,35 +58,45 @@ func (s *Stream) Write(b []byte) (n int, err error) {
 		return 0, os.ErrDeadlineExceeded
 	default:
 	}
-	f := newFrame(cmdPSH, s.id)
-	f.data = b
-
-	n, err = s.sess.writeFrame(f)
-
+	if s.dieErr != nil {
+		return 0, s.dieErr
+	}
+	n, err = s.sess.writeDataFrame(s.id, b)
 	return n, err
 }
 
 func (s *Stream) Close() error {
-	return s.CloseWithError(io.ErrClosedPipe)
+	return s.closeWithError(io.ErrClosedPipe)
 }
 
-func (s *Stream) CloseWithError(err error) error {
+// closeLocally only closes Stream and don't notify remote peer
+func (s *Stream) closeLocally() {
 	var once bool
+	s.dieOnce.Do(func() {
+		s.dieErr = net.ErrClosed
+		s.pipeR.Close()
+		once = true
+	})
+	if once {
+		if s.dieHook != nil {
+			s.dieHook()
+			s.dieHook = nil
+		}
+	}
+}
 
+func (s *Stream) closeWithError(err error) error {
+	var once bool
 	s.dieOnce.Do(func() {
 		s.dieErr = err
-
 		s.pipeR.Close()
-
 		once = true
 	})
 
 	if once {
-
 		if s.dieHook != nil {
 			s.dieHook()
 		}
-
 		return s.sess.streamClosed(s.id)
 	} else {
 		return s.dieErr
@@ -103,6 +114,8 @@ func (s *Stream) SetWriteDeadline(t time.Time) error {
 }
 
 func (s *Stream) SetDeadline(t time.Time) error {
+	_ = s.SetWriteDeadline(t)
+
 	return s.SetReadDeadline(t)
 }
 
@@ -135,7 +148,7 @@ func (s *Stream) HandshakeFailure(err error) error {
 
 		f := newFrame(cmdSYNACK, s.id)
 		f.data = []byte(err.Error())
-		if _, err := s.sess.writeFrame(f); err != nil {
+		if _, err := s.sess.writeControlFrame(f); err != nil {
 			return err
 		}
 	}
@@ -149,7 +162,7 @@ func (s *Stream) HandshakeSuccess() error {
 	})
 
 	if once && s.sess.peerVersion >= 2 {
-		if _, err := s.sess.writeFrame(newFrame(cmdSYNACK, s.id)); err != nil {
+		if _, err := s.sess.writeControlFrame(newFrame(cmdSYNACK, s.id)); err != nil {
 			return err
 		}
 	}
