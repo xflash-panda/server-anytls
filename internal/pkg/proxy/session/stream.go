@@ -62,7 +62,7 @@ func (s *Stream) Write(b []byte) (n int, err error) {
 		return 0, s.dieErr
 	}
 	n, err = s.sess.writeDataFrame(s.id, b)
-	return
+	return n, err
 }
 
 func (s *Stream) Close() error {

@@ -93,7 +93,6 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 	}
 
 	stream, err = session.OpenStream()
-
 	if err != nil {
 		session.Close()
 		return nil, fmt.Errorf("failed to create stream: %w", err)
@@ -102,10 +101,16 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 	stream.dieHook = func() {
 		// If Session is not closed, put this Stream to pool
 		if !session.IsClosed() {
-			c.idleSessionLock.Lock()
-			session.idleSince = time.Now()
-			c.idleSession.Insert(math.MaxUint64-session.seq, session)
-			c.idleSessionLock.Unlock()
+			select {
+			case <-c.die.Done():
+				// Now client has been closed
+				go session.Close()
+			default:
+				c.idleSessionLock.Lock()
+				session.idleSince = time.Now()
+				c.idleSession.Insert(math.MaxUint64-session.seq, session)
+				c.idleSessionLock.Unlock()
+			}
 		}
 	}
 
@@ -123,7 +128,7 @@ func (c *Client) getIdleSession() (idle *Session) {
 
 	c.idleSessionLock.Unlock()
 
-	return
+	return idle
 }
 
 func (c *Client) createSession(ctx context.Context) (*Session, error) {
