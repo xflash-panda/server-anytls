@@ -82,24 +82,21 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 
 	var err error
 
-	for i := 0; i < 3; i++ {
+	session = c.getIdleSession()
 
-		session, err = c.findSession(ctx)
-
-		if session == nil {
-			return nil, fmt.Errorf("failed to create session: %w", err)
-		}
-
-		stream, err = session.OpenStream()
-		if err != nil {
-			session.Close()
-			continue
-		}
-		break
+	if session == nil {
+		session, err = c.createSession(ctx)
 	}
 
-	if session == nil || stream == nil {
-		return nil, fmt.Errorf("too many closed session: %w", err)
+	if session == nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	stream, err = session.OpenStream()
+
+	if err != nil {
+		session.Close()
+		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
 	stream.dieHook = func() {
@@ -126,29 +123,18 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 	return stream, nil
 }
 
-func (c *Client) findSession(ctx context.Context) (*Session, error) {
-	var idle *Session
-
+func (c *Client) getIdleSession() (idle *Session) {
 	c.idleSessionLock.Lock()
 
 	if !c.idleSession.IsEmpty() {
-
 		it := c.idleSession.Iterate()
 		idle = it.Value()
-
 		c.idleSession.Remove(it.Key())
 	}
 
 	c.idleSessionLock.Unlock()
 
-	if idle == nil {
-
-		s, err := c.createSession(ctx)
-
-		return s, err
-	}
-
-	return idle, nil
+	return
 }
 
 func (c *Client) createSession(ctx context.Context) (*Session, error) {
