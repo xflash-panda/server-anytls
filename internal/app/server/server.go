@@ -79,13 +79,35 @@ func (s *Server) checkAndRegister() (string, error) {
 		existingState.RegisterID == ""
 
 	if !needRegister {
-		// Use existing register ID from state
-		logrus.WithFields(logrus.Fields{
-			"register_id": existingState.RegisterID,
-			"node_id":     existingState.NodeID,
-			"hostname":    existingState.Hostname,
-		}).Info("loaded register ID from state")
-		return existingState.RegisterID, nil
+		// Verify existing register ID with agent
+		verifyResp, err := s.opts.AgentClient.Verify(ctx, &pb.VerifyRequest{
+			NodeType:   pb.NodeType_ANYTLS,
+			RegisterId: existingState.RegisterID,
+		})
+		if err != nil {
+			logrus.WithError(err).Warn("failed to verify existing register ID, will re-register")
+			// Clear state and re-register
+			if err := ClearState(s.opts.DataDir); err != nil {
+				logrus.WithError(err).Warn("failed to clear state")
+			}
+			needRegister = true
+		} else if verifyResp != nil && verifyResp.GetResult() {
+			// Register ID is valid, use it
+			logrus.WithFields(logrus.Fields{
+				"register_id": existingState.RegisterID,
+				"node_id":     existingState.NodeID,
+				"hostname":    existingState.Hostname,
+			}).Info("verified and loaded register ID from state")
+			return existingState.RegisterID, nil
+		} else {
+			// Verify failed (result is false)
+			logrus.Warn("verify failed: result is not true, will re-register")
+			// Clear state and re-register
+			if err := ClearState(s.opts.DataDir); err != nil {
+				logrus.WithError(err).Warn("failed to clear state")
+			}
+			needRegister = true
+		}
 	}
 
 	// Need to register - first fetch config to get server port
@@ -204,14 +226,17 @@ func (s *Server) Close() error {
 	if s.opts != nil && s.opts.AgentClient != nil && s.registerID != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
 		defer cancel()
-		if _, err := s.opts.AgentClient.Unregister(ctx, &pb.UnregisterRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID}); err != nil {
+		resp, err := s.opts.AgentClient.Unregister(ctx, &pb.UnregisterRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID})
+		if err != nil {
 			logrus.WithError(err).Warn("failed to unregister with agent")
-		} else {
+		} else if resp != nil && resp.GetResult() {
 			logrus.Info("unregistered from agent")
 			// Clear state after successful unregister
 			if err := ClearState(s.opts.DataDir); err != nil {
 				logrus.WithError(err).Warn("failed to clear state")
 			}
+		} else {
+			logrus.Warn("unregister failed: result is not true")
 		}
 	}
 	s.cancel()
