@@ -1,9 +1,9 @@
-github.com/apernet/hysteria/core/v2 v2.6.4 h1:2LpVbip5ZYrxcBila9soGPqrdU2UoBJu4nv0SjUGBUE=
-github.com/apernet/hysteria/core/v2 v2.6.4/go.mod h1:r9j7xBZ8DnLkIQ9PcA6YLEP5BAq3wkjtSEQQNazFpOA=
+github.com/apernet/hysteria/core/v2 v2.6.5 h1:auqEyR9BXsY+PnYt6yXaUKK3YkIvwTTmYqO/P5XHyMw=
+github.com/apernet/hysteria/core/v2 v2.6.5/go.mod h1:fN9iNb30GpkeMZgEHKDwwwSfAyhR4YLHHIbmfTBRiM8=
 github.com/apernet/hysteria/extras/v2 v2.6.4 h1:whFtDJ8nyi/1xaAOSVdksrNIlS0M5yzE1tXU1CoYBAI=
 github.com/apernet/hysteria/extras/v2 v2.6.4/go.mod h1:oeT5M1NCQJPuYnT09vvIuhvec+37w7lrInR7Q6QL5WQ=
-github.com/apernet/quic-go v0.54.1-0.20250907230547-eb32f8aec5e2 h1:03y2WeGln3/QmBzm+KGQ3yej7Uz+76CqHoisdzYzf30=
-github.com/apernet/quic-go v0.54.1-0.20250907230547-eb32f8aec5e2/go.mod h1:Y4cCWi64O51TRUKDPy0ShA2/pevlWiWJJnlNo2fO2ds=
+github.com/apernet/quic-go v0.54.1-0.20251024023933-5e0818a71079 h1:WgFl2esvC7FnVhhBvA+BJUgxyheiTAhJ4CIbRlaK22I=
+github.com/apernet/quic-go v0.54.1-0.20251024023933-5e0818a71079/go.mod h1:Y4cCWi64O51TRUKDPy0ShA2/pevlWiWJJnlNo2fO2ds=
 github.com/chen3feng/stl4go v0.1.1 h1:0L1+mDw7pomftKDruM23f1mA7miavOj6C6MZeadzN2Q=
 github.com/chen3feng/stl4go v0.1.1/go.mod h1:5ml3psLgETJjRJnMbPE+JiHLrCpt+Ajc2weeTECXzWU=
 github.com/cpuguy83/go-md2man/v2 v2.0.7 h1:zbFlGlXEAKlwXpmvle3d8Oe3YnkKIK4xSRTd3sHPnBo=
