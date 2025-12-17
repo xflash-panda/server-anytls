@@ -94,7 +94,7 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 
 	stream, err = session.OpenStream()
 	if err != nil {
-		session.Close()
+		_ = session.Close()
 		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
@@ -104,7 +104,7 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 			select {
 			case <-c.die.Done():
 				// Now client has been closed
-				go session.Close()
+				go func() { _ = session.Close() }()
 			default:
 				c.idleSessionLock.Lock()
 				session.idleSince = time.Now()
@@ -174,7 +174,7 @@ func (c *Client) Close() error {
 	c.sessions = make(map[uint64]*Session)
 	c.sessionsLock.Unlock()
 	for _, session := range sessionToClose {
-		session.Close()
+		_ = session.Close()
 	}
 	return nil
 }

@@ -64,7 +64,7 @@ func (s *Server) buildOutbound() error {
 		uOb = outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto)
 	}
 	s.outbound = &outbounds.PluggableOutboundAdapter{PluggableOutbound: uOb}
-	// Maintain type compatibility with C.Outbound
-	var _ C.Outbound = s.outbound
+	// Compile-time interface implementation check
+	_ = C.Outbound(s.outbound)
 	return nil
 }

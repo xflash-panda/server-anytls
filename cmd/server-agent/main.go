@@ -167,7 +167,7 @@ func main() {
 				return fmt.Errorf("agent server connect error : %v", err)
 			}
 			agentClient := pb.NewAgentClient(agentConn)
-			defer agentConn.Close()
+			defer func() { _ = agentConn.Close() }()
 
 			opts := &server.Options{
 				AgentClient:   agentClient,

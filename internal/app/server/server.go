@@ -90,7 +90,7 @@ func (s *Server) checkAndRegister() (string, error) {
 			if err := ClearState(s.opts.DataDir); err != nil {
 				logrus.WithError(err).Warn("failed to clear state")
 			}
-			needRegister = true
+			// Fall through to registration
 		} else if verifyResp != nil && verifyResp.GetResult() {
 			// Register ID is valid, use it
 			logrus.WithFields(logrus.Fields{
@@ -106,7 +106,7 @@ func (s *Server) checkAndRegister() (string, error) {
 			if err := ClearState(s.opts.DataDir); err != nil {
 				logrus.WithError(err).Warn("failed to clear state")
 			}
-			needRegister = true
+			// Fall through to registration
 		}
 	}
 

@@ -53,7 +53,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		}
 	}()
 	c = tls.Server(c, s.tlsConfig)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	b := buf.NewPacket()
 	defer b.Release()
 	n, err := b.ReadOnceFrom(c)
@@ -118,7 +118,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 				}).Error("[BUG] stream panic recovered")
 			}
 		}()
-		defer stream.Close()
+		defer func() { _ = stream.Close() }()
 
 		// 验证Auth, 从conn中获取passwordHexString
 		passwordHexString := stream.GetConn().(*CountedConn).passwordHexString

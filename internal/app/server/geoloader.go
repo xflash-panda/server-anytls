@@ -63,22 +63,22 @@ func (l *GeoLoader) downloadAndCheck(filename, url string, checkFunc func(filena
 		l.DownloadErrFunc(err)
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	f, err := os.CreateTemp(".", geoDlTmpPattern)
 	if err != nil {
 		l.DownloadErrFunc(err)
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 
 	_, err = io.Copy(f, resp.Body)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		l.DownloadErrFunc(err)
 		return err
 	}
-	f.Close()
+	_ = f.Close()
 
 	err = checkFunc(f.Name())
 	if err != nil {

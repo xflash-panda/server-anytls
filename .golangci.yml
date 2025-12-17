@@ -1,10 +1,6 @@
 version: "2"
 
 linters:
-  default: none
-  enable:
-    - govet
-    - unused
   exclusions:
     paths:
       - "internal/pkg/proxy/session/session\\.go"
