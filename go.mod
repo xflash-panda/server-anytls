@@ -14,7 +14,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.6
 	github.com/xflash-panda/server-agent-proto v0.0.6
 	github.com/xflash-panda/server-client v0.1.1
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.71.1
 )
 
