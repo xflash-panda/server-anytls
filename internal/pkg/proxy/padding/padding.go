@@ -10,7 +10,7 @@ import (
 
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
 
-	"github.com/sagernet/sing/common/atomic"
+	"github.com/sagernet/sing/common"
 )
 
 const CheckMark = -1
@@ -32,7 +32,7 @@ type PaddingFactory struct {
 	Md5       string
 }
 
-var DefaultPaddingFactory atomic.TypedValue[*PaddingFactory]
+var DefaultPaddingFactory common.TypedValue[*PaddingFactory]
 
 func init() {
 	UpdatePaddingScheme(defaultPaddingScheme)

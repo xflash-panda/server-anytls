@@ -19,7 +19,7 @@ func proxyOutboundTCPWithOutbound(ctx context.Context, conn net.Conn, destinatio
 		return err
 	}
 
-	err = N.ReportHandshakeSuccess(conn)
+	err = N.ReportConnHandshakeSuccess(c, conn)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func proxyOutboundUoTWithOutbound(ctx context.Context, conn net.Conn, destinatio
 		return err
 	}
 
-	err = N.ReportHandshakeSuccess(conn)
+	err = N.ReportConnHandshakeSuccess(c, conn)
 	if err != nil {
 		return err
 	}
