@@ -1,6 +1,1 @@
 version: "2"
-
-linters:
-  exclusions:
-    paths:
-      - "internal/pkg/proxy/session/session\\.go"

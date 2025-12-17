@@ -1,4 +1,3 @@
-//nolint:all // intentionally excluded from lint due to compatibility and performance constraints
 package session
 
 import (
