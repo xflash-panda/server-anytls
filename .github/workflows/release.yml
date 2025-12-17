@@ -3,22 +3,8 @@ name: Build and Release
 on:
   workflow_dispatch:
   push:
-    branches:
-      - agent-master
-    paths:
-      - "**/*.go"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/*.yml"
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - "**/*.go"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/*.yml"
-  release:
-    types: [published]
+    tags:
+      - "av*"
 
 jobs:
   build:
@@ -42,10 +28,10 @@ jobs:
           echo "_NAME: $_NAME"
           [ -z "$_NAME" ] && echo "Error: _NAME is empty" && exit 1
           echo "GOOS: $GOOS, GOARCH: $GOARCH, RELEASE_NAME: $_NAME"
-          echo "ASSET_NAME=$_NAME" >> $GITHUB_ENV
+          echo "ASSET_NAME=$_NAME" >> $GITHUB_OUTPUT
       - name: Debug output
         run: |
-          echo "ASSET_NAME from environment: $ASSET_NAME"
+          echo "ASSET_NAME from output: ${{ steps.get_filename.outputs.ASSET_NAME }}"
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
@@ -75,9 +61,9 @@ jobs:
         run: |
           pushd build_assets || exit 1
           touch -mt $(date +%Y01010000) *
-          zip -9vr ../server-anytls-agent-$ASSET_NAME.zip .
+          zip -9vr ../server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}.zip .
           popd || exit 1
-          FILE=./server-anytls-agent-$ASSET_NAME.zip
+          FILE=./server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}.zip
           DGST=$FILE.dgst
           for METHOD in {"md5","sha1","sha256","sha512"}
           do
@@ -85,21 +71,21 @@ jobs:
           done
       - name: Change the name
         run: |
-          mv build_assets server-anytls-agent-$ASSET_NAME
+          mv build_assets server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}
       # Upload to artifacts
 
       - name: Upload files to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: server-anytls-agent-${{ env.ASSET_NAME }}
+          name: server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}
           path: |
-            ./server-anytls-agent-${{ env.ASSET_NAME }}
+            ./server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}
       # Upload binaries to release
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
-        if: github.event_name == 'release'
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./server-anytls-agent-${{ env.ASSET_NAME }}.zip*
+          file: ./server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}.zip*
           tag: ${{ github.ref }}
           file_glob: true
