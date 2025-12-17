@@ -1,5 +1,6 @@
 version: "2"
 
-issues:
-  exclude-files:
-    - ^internal/pkg/proxy/session/session\.go$
+linters:
+  exclusions:
+    paths:
+      - "internal/pkg/proxy/session/session\\.go"
