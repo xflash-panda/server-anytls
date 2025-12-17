@@ -7,13 +7,13 @@ import (
 	"math"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/chen3feng/stl4go"
+	"github.com/sagernet/sing/common"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
-
-	"github.com/chen3feng/stl4go"
-	"github.com/sagernet/sing/common/atomic"
 )
 
 type Client struct {
@@ -23,7 +23,7 @@ type Client struct {
 
 	dialOut util.DialOutFunc
 
-	sessionCounter atomic.Uint64
+	sessionCounter uint64
 
 	idleSession *stl4go.SkipList[uint64, *Session]
 
@@ -33,7 +33,7 @@ type Client struct {
 
 	sessionsLock sync.Mutex
 
-	padding *atomic.TypedValue[*padding.PaddingFactory]
+	padding *common.TypedValue[*padding.PaddingFactory]
 
 	idleSessionTimeout time.Duration
 
@@ -41,7 +41,7 @@ type Client struct {
 }
 
 func NewClient(ctx context.Context, dialOut util.DialOutFunc,
-	_padding *atomic.TypedValue[*padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
+	_padding *common.TypedValue[*padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
 ) *Client {
 	c := &Client{
 		sessions:           make(map[uint64]*Session),
@@ -139,7 +139,7 @@ func (c *Client) createSession(ctx context.Context) (*Session, error) {
 
 	session := NewClientSession(underlying, &padding.DefaultPaddingFactory)
 
-	session.seq = c.sessionCounter.Add(1)
+	session.seq = atomic.AddUint64(&c.sessionCounter, 1)
 
 	session.dieHook = func() {
 		c.idleSessionLock.Lock()

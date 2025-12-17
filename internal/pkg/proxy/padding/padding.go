@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sagernet/sing/common"
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
-
-	"github.com/sagernet/sing/common/atomic"
 )
 
 const CheckMark = -1
@@ -32,7 +31,7 @@ type PaddingFactory struct {
 	Md5       string
 }
 
-var DefaultPaddingFactory atomic.TypedValue[*PaddingFactory]
+var DefaultPaddingFactory common.TypedValue[*PaddingFactory]
 
 func init() {
 	UpdatePaddingScheme(defaultPaddingScheme)
