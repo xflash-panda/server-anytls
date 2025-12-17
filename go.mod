@@ -8,7 +8,7 @@ require (
 	github.com/apernet/hysteria/core/v2 v2.6.1
 	github.com/apernet/hysteria/extras/v2 v2.6.1
 	github.com/chen3feng/stl4go v0.1.1
-	github.com/sagernet/sing v0.5.1
+	github.com/sagernet/sing v0.7.13
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
 	github.com/urfave/cli/v2 v2.27.6
