@@ -29,3 +29,4 @@ go.work.sum
 cmd/server/server
 cmd/server/geoip.dat
 cmd/server/geosite.dat
+cmd/server-agent/
