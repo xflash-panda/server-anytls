@@ -94,8 +94,8 @@ github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301 h1:d/Wr/Vl/wiJHc
 github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301/go.mod h1:ntmMHL/xPq1WLeKiw8p/eRATaae6PiVRNipHFJxI8PM=
 github.com/urfave/cli/v2 v2.27.6 h1:VdRdS98FNhKZ8/Az8B7MTyGQmpIr36O1EHybx/LaZ4g=
 github.com/urfave/cli/v2 v2.27.6/go.mod h1:3Sevf16NykTbInEnD0yKkjDAeZDS0A6bzhBH5hrMvTQ=
-github.com/xflash-panda/server-agent-proto v0.0.6 h1:H7qAm+DJI0LIGdIfK/n1TT+LGPw3d41vH0Malq4NlDI=
-github.com/xflash-panda/server-agent-proto v0.0.6/go.mod h1:1vB7+DAfkCXNQV78TaSTkCNq6LA+D+1EOoYdzJGO7Us=
+github.com/xflash-panda/server-agent-proto v0.0.7 h1:HtA9KlQZr4SlSjf4XYCfrtTdvEQAYkiFNsk5sgHkUnQ=
+github.com/xflash-panda/server-agent-proto v0.0.7/go.mod h1:1vB7+DAfkCXNQV78TaSTkCNq6LA+D+1EOoYdzJGO7Us=
 github.com/xflash-panda/server-client v0.1.1 h1:y0o+8bOacI3LaQ1lhuVjvRCS3Wu3HEWjoikP35vOV7g=
 github.com/xflash-panda/server-client v0.1.1/go.mod h1:L0RRWwQct2GUm8ebkKo1j7wPNw5NGlK6h4xZPNreexQ=
 github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 h1:gEOO8jv9F4OT7lGCjxCBTO/36wtF6j2nSip77qHd4x4=
