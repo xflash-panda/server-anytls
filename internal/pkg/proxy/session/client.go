@@ -206,6 +206,6 @@ func (c *Client) idleCleanupExpTime(expTime time.Time) {
 	}
 	c.idleSessionLock.Unlock()
 	for _, session := range sessionToClose {
-		session.Close()
+		_ = session.Close()
 	}
 }

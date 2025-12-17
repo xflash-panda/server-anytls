@@ -71,7 +71,7 @@ func NewServerSession(conn net.Conn, onNewStream func(stream *Stream), _padding 
 
 func (s *Session) Run() {
 	if !s.isClient {
-		s.recvLoop()
+		_ = s.recvLoop()
 		return
 	}
 
@@ -84,8 +84,8 @@ func (s *Session) Run() {
 	f := newFrame(cmdSettings, 0)
 	f.data = settings.ToBytes()
 	s.buffering = true
-	s.writeControlFrame(f)
-	go s.recvLoop()
+	_, _ = s.writeControlFrame(f)
+	go func() { _ = s.recvLoop() }()
 }
 
 func (s *Session) IsClosed() bool {
@@ -135,7 +135,7 @@ func (s *Session) OpenStream() (*Stream, error) {
 		}
 
 		s.synDone = util.NewDeadlineWatcher(time.Second*3, func() {
-			s.Close()
+			_ = s.Close()
 		})
 		s.synDoneLock.Unlock()
 	}
@@ -163,7 +163,7 @@ func (s *Session) recvLoop() error {
 			logrus.Errorln("[BUG]", r, string(debug.Stack()))
 		}
 	}()
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	var receivedSettingsFromClient bool
 	var hdr rawHeader
 	for {
@@ -181,11 +181,11 @@ func (s *Session) recvLoop() error {
 						stream, ok := s.streams[sid]
 						s.streamLock.RUnlock()
 						if ok {
-							stream.pipeW.Write(buffer)
+							_, _ = stream.pipeW.Write(buffer)
 						}
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 					} else {
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 						return err
 					}
 				}
@@ -193,7 +193,7 @@ func (s *Session) recvLoop() error {
 				if !s.isClient && !receivedSettingsFromClient {
 					f := newFrame(cmdAlert, 0)
 					f.data = []byte("client did not send its settings")
-					s.writeControlFrame(f)
+					_, _ = s.writeControlFrame(f)
 					return nil
 				}
 				s.streamLock.Lock()
@@ -204,7 +204,7 @@ func (s *Session) recvLoop() error {
 						if s.onNewStream != nil {
 							s.onNewStream(stream)
 						} else {
-							stream.Close()
+							_ = stream.Close()
 						}
 					}()
 				}
@@ -219,16 +219,16 @@ func (s *Session) recvLoop() error {
 				if hdr.Length() > 0 {
 					buffer := buf.Get(int(hdr.Length()))
 					if _, err := io.ReadFull(s.conn, buffer); err != nil {
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 						return err
 					}
 					s.streamLock.RLock()
 					stream, ok := s.streams[sid]
 					s.streamLock.RUnlock()
 					if ok {
-						stream.closeWithError(fmt.Errorf("remote: %s", string(buffer)))
+						_ = stream.closeWithError(fmt.Errorf("remote: %s", string(buffer)))
 					}
-					buf.Put(buffer)
+					_ = buf.Put(buffer)
 				}
 			case cmdFIN:
 				s.streamLock.Lock()
@@ -353,10 +353,10 @@ func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
 	dataLen := len(data)
 
 	buffer := buf.NewSize(dataLen + headerOverHeadSize)
-	buffer.WriteByte(cmdPSH)
+	_ = buffer.WriteByte(cmdPSH)
 	binary.BigEndian.PutUint32(buffer.Extend(4), sid)
 	binary.BigEndian.PutUint16(buffer.Extend(2), uint16(dataLen))
-	buffer.Write(data)
+	_, _ = buffer.Write(data)
 	_, err := s.writeConn(buffer.Bytes())
 	buffer.Release()
 	if err != nil {
@@ -370,21 +370,21 @@ func (s *Session) writeControlFrame(frame frame) (int, error) {
 	dataLen := len(frame.data)
 
 	buffer := buf.NewSize(dataLen + headerOverHeadSize)
-	buffer.WriteByte(frame.cmd)
+	_ = buffer.WriteByte(frame.cmd)
 	binary.BigEndian.PutUint32(buffer.Extend(4), frame.sid)
 	binary.BigEndian.PutUint16(buffer.Extend(2), uint16(dataLen))
-	buffer.Write(frame.data)
+	_, _ = buffer.Write(frame.data)
 
-	s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+	_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 	_, err := s.writeConn(buffer.Bytes())
 	buffer.Release()
 	if err != nil {
-		s.Close()
+		_ = s.Close()
 		return 0, err
 	}
 
-	s.conn.SetWriteDeadline(time.Time{})
+	_ = s.conn.SetWriteDeadline(time.Time{})
 
 	return dataLen, nil
 }
