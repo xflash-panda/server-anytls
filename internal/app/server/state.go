@@ -17,7 +17,7 @@ type State struct {
 }
 
 const (
-	DefaultDataDir = "/tmp/anytls-agent-node"
+	DefaultDataDir = "/var/lib/anytls-agent-node"
 	StateFileName  = "state.json"
 )
 
