@@ -242,16 +242,16 @@ func (s *Session) recvLoop() error {
 				if hdr.Length() > 0 {
 					buffer := buf.Get(int(hdr.Length()))
 					if _, err := io.ReadFull(s.conn, buffer); err != nil {
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 						return err
 					}
-					buf.Put(buffer)
+					_ = buf.Put(buffer)
 				}
 			case cmdSettings:
 				if hdr.Length() > 0 {
 					buffer := buf.Get(int(hdr.Length()))
 					if _, err := io.ReadFull(s.conn, buffer); err != nil {
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 						return err
 					}
 					if !s.isClient {
@@ -263,7 +263,7 @@ func (s *Session) recvLoop() error {
 							f.data = paddingF.RawScheme
 							_, err = s.writeControlFrame(f)
 							if err != nil {
-								buf.Put(buffer)
+								_ = buf.Put(buffer)
 								return err
 							}
 						}
@@ -275,24 +275,24 @@ func (s *Session) recvLoop() error {
 							}.ToBytes()
 							_, err = s.writeControlFrame(f)
 							if err != nil {
-								buf.Put(buffer)
+								_ = buf.Put(buffer)
 								return err
 							}
 						}
 					}
-					buf.Put(buffer)
+					_ = buf.Put(buffer)
 				}
 			case cmdAlert:
 				if hdr.Length() > 0 {
 					buffer := buf.Get(int(hdr.Length()))
 					if _, err := io.ReadFull(s.conn, buffer); err != nil {
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 						return err
 					}
 					if s.isClient {
 						logrus.Errorln("[Alert from server]", string(buffer))
 					}
-					buf.Put(buffer)
+					_ = buf.Put(buffer)
 					return nil
 				}
 			case cmdUpdatePaddingScheme:
@@ -319,7 +319,7 @@ func (s *Session) recvLoop() error {
 				if hdr.Length() > 0 {
 					buffer := buf.Get(int(hdr.Length()))
 					if _, err := io.ReadFull(s.conn, buffer); err != nil {
-						buf.Put(buffer)
+						_ = buf.Put(buffer)
 						return err
 					}
 					if s.isClient {
@@ -328,7 +328,7 @@ func (s *Session) recvLoop() error {
 							s.peerVersion = byte(v)
 						}
 					}
-					buf.Put(buffer)
+					_ = buf.Put(buffer)
 				}
 			default:
 			}

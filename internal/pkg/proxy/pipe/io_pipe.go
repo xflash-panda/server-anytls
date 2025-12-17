@@ -149,7 +149,7 @@ func (w *PipeWriter) Close() error {
 }
 
 func (w *PipeWriter) CloseWithError(err error) error {
-	return w.r.pipe.closeWrite(err)
+	return w.r.closeWrite(err)
 }
 
 func Pipe() (*PipeReader, *PipeWriter) {
