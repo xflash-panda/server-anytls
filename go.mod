@@ -5,25 +5,25 @@ go 1.24.4
 toolchain go1.24.9
 
 require (
-	github.com/apernet/hysteria/core/v2 v2.6.4
-	github.com/apernet/hysteria/extras/v2 v2.6.4
+	github.com/apernet/hysteria/core/v2 v2.6.5
+	github.com/apernet/hysteria/extras/v2 v2.6.5
 	github.com/chen3feng/stl4go v0.1.1
-	github.com/sagernet/sing v0.5.1
+	github.com/sagernet/sing v0.7.13
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
-	github.com/xflash-panda/server-client v0.1.1
-	go.uber.org/zap v1.27.0
+	github.com/xflash-panda/server-client v0.1.4
+	go.uber.org/zap v1.27.1
 )
 
 require (
-	github.com/apernet/quic-go v0.54.1-0.20250907230547-eb32f8aec5e2 // indirect
+	github.com/apernet/quic-go v0.54.1-0.20251024023933-5e0818a71079 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/database64128/netx-go v0.1.1 // indirect
 	github.com/database64128/tfo-go/v2 v2.3.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-resty/resty/v2 v2.16.5 // indirect
+	github.com/go-resty/resty/v2 v2.17.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/miekg/dns v1.1.68 // indirect
