@@ -10,6 +10,7 @@ on:
       - "go.mod"
       - "go.sum"
       - ".github/workflows/ci.yml"
+      - ".golangci.yml"
   pull_request:
     branches:
       - dev/agent-master
@@ -19,6 +20,7 @@ on:
       - "go.mod"
       - "go.sum"
       - ".github/workflows/ci.yml"
+      - ".golangci.yml"
 
 jobs:
   build:
