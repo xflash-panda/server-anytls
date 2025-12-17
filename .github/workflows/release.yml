@@ -33,7 +33,7 @@ jobs:
         run: |
           echo "ASSET_NAME from output: ${{ steps.get_filename.outputs.ASSET_NAME }}"
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v6
         with:
           go-version: '1.23.10'
       - name: Get project dependencies
