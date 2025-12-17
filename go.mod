@@ -11,7 +11,7 @@ require (
 	github.com/sagernet/sing v0.5.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
-	github.com/urfave/cli/v2 v2.27.6
+	github.com/urfave/cli/v2 v2.27.7
 	github.com/xflash-panda/server-agent-proto v0.0.6
 	github.com/xflash-panda/server-client v0.1.1
 	go.uber.org/zap v1.27.0
@@ -21,7 +21,7 @@ require (
 require (
 	github.com/apernet/quic-go v0.49.1-0.20250204013113-43c72b1281a0 // indirect
 	github.com/babolivier/go-doh-client v0.0.0-20201028162107-a76cff4cb8b6 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/database64128/netx-go v0.0.0-20240905055117-62795b8b054a // indirect
 	github.com/database64128/tfo-go/v2 v2.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
