@@ -79,7 +79,6 @@ func (s *Session) Run() {
 
 	settings := util.StringMap{
 		"v":           "2",
-		"client":      util.ProgramVersionName,
 		"padding-md5": s.padding.Load().Md5,
 	}
 

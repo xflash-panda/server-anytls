@@ -291,13 +291,13 @@ func (s *Server) Close() error {
 	s.closeOnce.Do(func() {
 		// 优先取消注册
 		if s.registerID != "" && s.apiClient != nil {
-			if err := s.apiClient.Unregister(api.AnyTLS, s.registerID); err != nil && s.closeErr == nil {
-				s.closeErr = fmt.Errorf("failed to unregister node: %w", err)
-			} else if err == nil {
+			if err := s.apiClient.Unregister(api.AnyTLS, s.registerID); err != nil {
+				logrus.WithError(err).Error("failed to unregister node")
+			} else {
 				logrus.WithField("register_id", s.registerID).Info("Node unregistered successfully")
 				// 取消注册成功后，清空状态文件
 				if clearErr := ClearState(s.dataDir); clearErr != nil {
-					logrus.Warnf("failed to clear state after unregister: %s", clearErr)
+					logrus.WithError(clearErr).Error("failed to clear state after unregister")
 				}
 			}
 		}
