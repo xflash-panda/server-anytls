@@ -228,15 +228,15 @@ func (s *Server) Close() error {
 		defer cancel()
 		resp, err := s.opts.AgentClient.Unregister(ctx, &pb.UnregisterRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID})
 		if err != nil {
-			logrus.WithError(err).Warn("failed to unregister with agent")
+			logrus.WithError(err).Error("failed to unregister with agent")
 		} else if resp != nil && resp.GetResult() {
 			logrus.Info("unregistered from agent")
-			// Clear state after successful unregister
+			// Clear state only after successful unregister
 			if err := ClearState(s.opts.DataDir); err != nil {
-				logrus.WithError(err).Warn("failed to clear state")
+				logrus.WithError(err).Error("failed to clear state")
 			}
 		} else {
-			logrus.Warn("unregister failed: result is not true")
+			logrus.Error("unregister failed: result is not true")
 		}
 	}
 	s.cancel()
