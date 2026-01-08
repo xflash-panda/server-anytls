@@ -47,7 +47,7 @@ func NewUsersService(config *Config, client pb.AgentClient) *UsersService {
 func (s *UsersService) init() error {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
-	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS})
+	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS, NodeId: int32(s.config.NodeID)})
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (s *UsersService) FetchUsersTask() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
-	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS})
+	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS, NodeId: int32(s.config.NodeID)})
 	if err != nil {
 		log.Errorln("fetch users error:", err)
 		return nil
