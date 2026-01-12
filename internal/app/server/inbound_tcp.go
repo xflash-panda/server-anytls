@@ -108,7 +108,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		ctx:               ctx,
 		passwordHexString: passwordHexString,
 	}
-	session := session.NewServerSession(countedConn, func(stream *session.Stream) {
+	sess := session.NewServerSession(countedConn, func(stream *session.Stream) {
 		logrus.Debugln("stream created")
 		defer func() {
 			if r := recover(); r != nil {
@@ -119,13 +119,6 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			}
 		}()
 		defer func() { _ = stream.Close() }()
-
-		// 验证Auth, 从conn中获取passwordHexString
-		passwordHexString := stream.GetConn().(*CountedConn).passwordHexString
-		if !s.userService.Auth(passwordHexString) {
-			logrus.Debug("authentication failed on stream, origin password:", passwordHexString)
-			return
-		}
 
 		// 更新流量请求次数
 		s.userService.UpdateTraffic(userId, 0, 0, 1)
@@ -148,8 +141,17 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 
 		}
 	}, &padding.DefaultPaddingFactory)
+
+	// Register connection for user
+	s.userService.RegisterConnection(userId, sess)
+
+	// Set cleanup hook to unregister connection when session closes
+	sess.SetDieHook(func() {
+		s.userService.UnregisterConnection(userId, sess)
+	})
+
 	s.userService.UpdateTraffic(userId, uint64(n), 0, 0)
-	session.Run()
+	sess.Run()
 }
 
 // CountedConn 包装原始连接以统计流量

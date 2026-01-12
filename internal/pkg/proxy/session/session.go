@@ -96,6 +96,11 @@ func (s *Session) IsClosed() bool {
 	}
 }
 
+// SetDieHook sets a callback function that will be called when the session closes
+func (s *Session) SetDieHook(hook func()) {
+	s.dieHook = hook
+}
+
 func (s *Session) Close() error {
 	var once bool
 	s.dieOnce.Do(func() {
