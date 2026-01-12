@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -14,25 +15,27 @@ import (
 )
 
 type UsersService struct {
-	client         *api.Client
-	config         *Config
-	userManager    *UserManager
-	trafficManager *TrafficManager
-	userList       *[]api.User
-	ctx            context.Context
-	cancel         context.CancelFunc
-	updateMutex    sync.Mutex
+	client            *api.Client
+	config            *Config
+	userManager       *UserManager
+	trafficManager    *TrafficManager
+	connectionManager *ConnectionManager
+	userList          *[]api.User
+	ctx               context.Context
+	cancel            context.CancelFunc
+	updateMutex       sync.Mutex
 }
 
 func NewUsersService(config *Config, client *api.Client) *UsersService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &UsersService{
-		client:         client,
-		config:         config,
-		userManager:    newUserManager(),
-		trafficManager: newTrafficManager(),
-		ctx:            ctx,
-		cancel:         cancel,
+		client:            client,
+		config:            config,
+		userManager:       newUserManager(),
+		trafficManager:    newTrafficManager(),
+		connectionManager: newConnectionManager(),
+		ctx:               ctx,
+		cancel:            cancel,
 	}
 }
 
@@ -120,6 +123,16 @@ func (s *UsersService) GetUserId(uuidBytes []byte) (int, bool) {
 	return s.userManager.GetUserId(uuidBytes)
 }
 
+// RegisterConnection registers a connection for a user
+func (s *UsersService) RegisterConnection(userId int, conn io.Closer) {
+	s.connectionManager.Add(userId, conn)
+}
+
+// UnregisterConnection unregisters a connection for a user
+func (s *UsersService) UnregisterConnection(userId int, conn io.Closer) {
+	s.connectionManager.Remove(userId, conn)
+}
+
 func (s *UsersService) UpdateTraffic(userId int, up, down, count uint64) {
 	if trafficItem := s.GetTrafficItem(userId); trafficItem != nil {
 		if up > 0 {
@@ -151,7 +164,7 @@ func (s *UsersService) FetchUsersTask() error {
 	deleted, added := s.compareUserList(newUserList)
 
 	if len(deleted) > 0 {
-		s.userManager.deleteUsers(deleted)
+		s.userManager.deleteUsers(deleted, s.connectionManager)
 	}
 
 	if len(added) > 0 {
@@ -251,11 +264,13 @@ func (um *UserManager) addUsers(users []api.User) {
 	}
 }
 
-func (um *UserManager) deleteUsers(users []api.User) {
+func (um *UserManager) deleteUsers(users []api.User, cm *ConnectionManager) {
 	for _, user := range users {
 		key := sha256.Sum256([]byte(user.UUID))
 		um.store.Delete(hex.EncodeToString(key[:]))
 		log.Debugf("delete user uuid %s, id %d", user.UUID, user.ID)
+		// Close all connections for this user
+		cm.CloseAll(user.ID)
 	}
 }
 
@@ -335,4 +350,50 @@ func (t *TrafficItem) delete() {
 
 func newTrafficItem() *TrafficItem {
 	return &TrafficItem{NewCounter(0), NewCounter(0), NewCounter(0)}
+}
+
+// ConnectionManager manages user to connection mapping
+type ConnectionManager struct {
+	mu    sync.RWMutex
+	conns map[int]map[io.Closer]struct{}
+}
+
+func newConnectionManager() *ConnectionManager {
+	return &ConnectionManager{
+		conns: make(map[int]map[io.Closer]struct{}),
+	}
+}
+
+func (cm *ConnectionManager) Add(userId int, conn io.Closer) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	if cm.conns[userId] == nil {
+		cm.conns[userId] = make(map[io.Closer]struct{})
+	}
+	cm.conns[userId][conn] = struct{}{}
+}
+
+func (cm *ConnectionManager) Remove(userId int, conn io.Closer) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	if cm.conns[userId] != nil {
+		delete(cm.conns[userId], conn)
+		if len(cm.conns[userId]) == 0 {
+			delete(cm.conns, userId)
+		}
+	}
+}
+
+func (cm *ConnectionManager) CloseAll(userId int) {
+	cm.mu.Lock()
+	conns := cm.conns[userId]
+	delete(cm.conns, userId)
+	cm.mu.Unlock()
+
+	for conn := range conns {
+		_ = conn.Close()
+	}
+	if len(conns) > 0 {
+		log.Debugf("closed %d connections for user %d", len(conns), userId)
+	}
 }
