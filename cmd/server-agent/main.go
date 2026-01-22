@@ -5,17 +5,18 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"syscall"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
+	"github.com/xflash-panda/acl-engine/pkg/acl"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/app/server"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
@@ -23,7 +24,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.2.0"
+	Version   = "0.2.1"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -231,6 +232,54 @@ func main() {
 				return err
 			}
 			return nil
+		},
+		Commands: []*cli.Command{
+			{
+				Name:  "update-geodata",
+				Usage: "Update geoip and geosite databases",
+				Action: func(c *cli.Context) error {
+					if dataDir == "" {
+						dataDir = server.DefaultDataDir
+					}
+
+					// Ensure directory exists
+					if err := os.MkdirAll(dataDir, 0755); err != nil {
+						return fmt.Errorf("failed to create data directory: %w", err)
+					}
+
+					// Remove existing files to force re-download
+					geoIPPath := filepath.Join(dataDir, acl.DefaultGeoIPFilename(acl.GeoIPFormatMMDB))
+					geoSitePath := filepath.Join(dataDir, acl.DefaultGeoSiteFilename(acl.GeoSiteFormatSing))
+
+					_ = os.Remove(geoIPPath)
+					_ = os.Remove(geoSitePath)
+
+					loader := &acl.AutoGeoLoader{
+						DataDir:       dataDir,
+						GeoIPFormat:   acl.GeoIPFormatMMDB,
+						GeoSiteFormat: acl.GeoSiteFormatSing,
+						GeoIPURL:      acl.MetaCubeXGeoIPMMDBURL,
+						GeoSiteURL:    acl.MetaCubeXGeoSiteDBURL,
+						Logger: func(format string, args ...interface{}) {
+							log.Infof(format, args...)
+						},
+					}
+
+					log.Info("Updating geoip database...")
+					if _, err := loader.LoadGeoIP(); err != nil {
+						return fmt.Errorf("failed to update geoip: %w", err)
+					}
+					log.Info("geoip database updated")
+
+					log.Info("Updating geosite database...")
+					if _, err := loader.LoadGeoSite(); err != nil {
+						return fmt.Errorf("failed to update geosite: %w", err)
+					}
+					log.Info("geosite database updated")
+
+					return nil
+				},
+			},
 		},
 	}
 

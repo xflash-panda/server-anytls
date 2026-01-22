@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/xflash-panda/acl-engine/pkg/acl"
 	"github.com/xflash-panda/acl-engine/pkg/outbound"
 	"github.com/xflash-panda/acl-engine/pkg/router"
@@ -55,7 +56,7 @@ func (s *Server) buildOutbound() error {
 		GeoIPURL:      acl.MetaCubeXGeoIPMMDBURL,
 		GeoSiteURL:    acl.MetaCubeXGeoSiteDBURL,
 		Logger: func(format string, args ...interface{}) {
-			geoDownloadFunc(format, "")
+			log.Infof(format, args...)
 		},
 	}
 

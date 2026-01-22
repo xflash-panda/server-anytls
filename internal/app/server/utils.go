@@ -5,9 +5,7 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/xflash-panda/acl-engine/pkg/outbound"
-	"go.uber.org/zap"
 )
 
 func serverConfigOutboundDirectToOutbound(c serverConfigOutboundDirect) (outbound.Outbound, error) {
@@ -61,7 +59,4 @@ func serverConfigOutboundHTTPToOutbound(c serverConfigOutboundHTTP) (outbound.Ou
 	return outbound.NewHTTP(c.URL, c.Insecure)
 }
 
-func geoDownloadFunc(filename, url string) {
-	log.Info("downloading database", zap.String("filename", filename), zap.String("url", url))
-}
 
