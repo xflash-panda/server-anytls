@@ -4,6 +4,7 @@ import (
 	"net"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/xflash-panda/acl-engine/pkg/outbound"
 	"github.com/xflash-panda/acl-engine/pkg/router"
 )
@@ -23,6 +24,7 @@ func NewOutboundAdapter(r *router.Router) *OutboundAdapter {
 // TCP establishes a TCP connection to the given address string.
 // addr format: "host:port"
 func (a *OutboundAdapter) TCP(addr string) (net.Conn, error) {
+	log.WithField("addr", addr).Debug("outbound TCP dial")
 	oa, err := parseAddr(addr)
 	if err != nil {
 		return nil, err

@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
@@ -40,7 +43,16 @@ func (s *Server) initializeFromOptions() error {
 
 	// Load extended config if provided
 	if s.opts.ExtConfPath != "" {
-		viper.SetConfigFile(s.opts.ExtConfPath)
+		confPath := s.opts.ExtConfPath
+		// Convert relative path to absolute path based on executable location
+		if !filepath.IsAbs(confPath) {
+			execPath, err := os.Executable()
+			if err == nil {
+				confPath = filepath.Join(filepath.Dir(execPath), confPath)
+			}
+		}
+		log.WithField("path", confPath).Info("loading extended config")
+		viper.SetConfigFile(confPath)
 		if err := viper.ReadInConfig(); err != nil {
 			return fmt.Errorf("failed to read ext config: %w", err)
 		}
@@ -49,6 +61,12 @@ func (s *Server) initializeFromOptions() error {
 			return fmt.Errorf("failed to unmarshal ext config: %w", err)
 		}
 		s.extConfig = extCfg
+		log.WithFields(log.Fields{
+			"outbounds": len(extCfg.Outbounds),
+			"acl_rules": len(extCfg.ACL.Inline),
+		}).Info("extended config loaded")
+	} else {
+		log.Info("no extended config path provided")
 	}
 
 	// Initialize user service

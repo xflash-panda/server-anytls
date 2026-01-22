@@ -62,8 +62,13 @@ func (s *Server) buildOutbound() error {
 
 	// Build router with ACL rules or use first outbound directly
 	if s.extConfig != nil && len(s.extConfig.ACL.Inline) > 0 {
+		aclRules := strings.Join(s.extConfig.ACL.Inline, "\n")
+		log.WithFields(log.Fields{
+			"rules_count": len(s.extConfig.ACL.Inline),
+			"outbounds":   len(obs),
+		}).Info("building ACL router with rules")
 		r, err := router.New(
-			strings.Join(s.extConfig.ACL.Inline, "\n"),
+			aclRules,
 			obs,
 			geoLoader,
 		)
@@ -71,8 +76,10 @@ func (s *Server) buildOutbound() error {
 			return configError{Field: "acl.inline", Err: err}
 		}
 		s.outbound = NewOutboundAdapter(r)
+		log.Info("ACL router built successfully")
 	} else {
 		// No ACL rules, wrap first outbound directly
+		log.Info("no ACL rules, using default direct outbound")
 		r, err := router.New("default(all)", obs, geoLoader)
 		if err != nil {
 			return configError{Field: "outbound", Err: err}
