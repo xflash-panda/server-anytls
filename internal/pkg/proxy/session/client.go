@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/chen3feng/stl4go"
-	"github.com/sagernet/sing/common"
+	satomic "github.com/sagernet/sing/common/atomic"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
 )
@@ -33,7 +33,7 @@ type Client struct {
 
 	sessionsLock sync.Mutex
 
-	padding *common.TypedValue[*padding.PaddingFactory]
+	padding *satomic.TypedValue[*padding.PaddingFactory]
 
 	idleSessionTimeout time.Duration
 
@@ -41,7 +41,7 @@ type Client struct {
 }
 
 func NewClient(ctx context.Context, dialOut util.DialOutFunc,
-	_padding *common.TypedValue[*padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
+	_padding *satomic.TypedValue[*padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
 ) *Client {
 	c := &Client{
 		sessions:           make(map[uint64]*Session),

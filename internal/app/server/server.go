@@ -16,9 +16,15 @@ import (
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
 
-	C "github.com/apernet/hysteria/core/v2/server"
 	"github.com/sirupsen/logrus"
 )
+
+// Outbound is the interface for establishing outbound connections.
+// This matches the interface expected by outbound_tcp.go.
+type Outbound interface {
+	TCP(addr string) (net.Conn, error)
+	UDP(addr string) (UDPConn, error)
+}
 
 type Server struct {
 	tlsConfig    *tls.Config
@@ -26,7 +32,7 @@ type Server struct {
 	listener     net.Listener
 	userService  *service.UsersService
 	extConfig    *ExtConfig
-	outbound     C.Outbound
+	outbound     Outbound
 	opts         *Options
 	registerID   string
 	// 服务器状态

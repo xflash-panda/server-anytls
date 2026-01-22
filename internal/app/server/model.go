@@ -7,8 +7,6 @@ import (
 
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
-
-	C "github.com/apernet/hysteria/core/v2/server"
 )
 
 const (
@@ -96,8 +94,9 @@ type Options struct {
 // 	}
 // }
 
+// udpConnAdapter adapts our UDPConn interface to net.PacketConn.
 type udpConnAdapter struct {
-	C.UDPConn
+	UDPConn // from outbound_adapter.go
 }
 
 func (a *udpConnAdapter) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
