@@ -7,7 +7,7 @@ toolchain go1.24.9
 require (
 	github.com/chen3feng/stl4go v0.1.1
 	github.com/sagernet/sing v0.4.2
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xflash-panda/acl-engine v0.2.1
