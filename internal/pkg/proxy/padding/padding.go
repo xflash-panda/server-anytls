@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sagernet/sing/common/atomic"
+	scommon "github.com/sagernet/sing/common"
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
 )
 
@@ -31,7 +31,7 @@ type PaddingFactory struct {
 	Md5       string
 }
 
-var DefaultPaddingFactory atomic.TypedValue[*PaddingFactory]
+var DefaultPaddingFactory scommon.TypedValue[*PaddingFactory]
 
 func init() {
 	UpdatePaddingScheme(defaultPaddingScheme)

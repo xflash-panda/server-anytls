@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	satomic "github.com/sagernet/sing/common/atomic"
+	scommon "github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sirupsen/logrus"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
@@ -36,7 +36,7 @@ type Session struct {
 	synDoneLock sync.Mutex
 	seq         uint64
 	idleSince   time.Time
-	padding     *satomic.TypedValue[*padding.PaddingFactory]
+	padding     *scommon.TypedValue[*padding.PaddingFactory]
 	peerVersion byte
 	isClient    bool
 	sendPadding bool
@@ -46,7 +46,7 @@ type Session struct {
 	onNewStream func(stream *Stream)
 }
 
-func NewClientSession(conn net.Conn, _padding *satomic.TypedValue[*padding.PaddingFactory]) *Session {
+func NewClientSession(conn net.Conn, _padding *scommon.TypedValue[*padding.PaddingFactory]) *Session {
 	s := &Session{
 		conn:        conn,
 		isClient:    true,
@@ -58,7 +58,7 @@ func NewClientSession(conn net.Conn, _padding *satomic.TypedValue[*padding.Paddi
 	return s
 }
 
-func NewServerSession(conn net.Conn, onNewStream func(stream *Stream), _padding *satomic.TypedValue[*padding.PaddingFactory]) *Session {
+func NewServerSession(conn net.Conn, onNewStream func(stream *Stream), _padding *scommon.TypedValue[*padding.PaddingFactory]) *Session {
 	s := &Session{
 		conn:        conn,
 		onNewStream: onNewStream,
