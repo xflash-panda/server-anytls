@@ -11,7 +11,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xflash-panda/acl-engine v0.2.1
-	github.com/xflash-panda/server-client v0.1.4
+	github.com/xflash-panda/server-client v0.1.5
 )
 
 require (
