@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -15,11 +16,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"github.com/xflash-panda/acl-engine/pkg/acl"
 )
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.1.5"
+	Version   = "0.2.0"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -30,6 +32,7 @@ func main() {
 	var logLevel string
 	var extConfPath string
 	var dataDir string
+	var refreshGeoData bool
 
 	app := &cli.App{
 		Name:      Name,
@@ -128,6 +131,12 @@ func main() {
 				Required:    false,
 				Destination: &dataDir,
 			},
+			&cli.BoolFlag{
+				Name:        "refresh_geodata",
+				Usage:       "force refresh geoip and geosite databases on startup",
+				EnvVars:     []string{"X_PANDA_ANYTLS_REFRESH_GEODATA", "REFRESH_GEODATA"},
+				Destination: &refreshGeoData,
+			},
 		},
 		Before: func(c *cli.Context) error {
 			log.SetFormatter(&log.TextFormatter{
@@ -152,6 +161,14 @@ func main() {
 		Action: func(c *cli.Context) error {
 			var srv *server.Server
 			var err error
+
+			// Force refresh geodata if requested
+			if refreshGeoData {
+				if err := forceRefreshGeoData(dataDir); err != nil {
+					return fmt.Errorf("failed to refresh geodata: %w", err)
+				}
+			}
+
 			srv, err = server.New(apiConfig, serviceConfig, certConfig, extConfPath, dataDir)
 			if err != nil {
 				log.WithError(err).Error("failed to init server")
@@ -201,4 +218,47 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.WithError(err).Fatal("Application failed to start")
 	}
+}
+
+func forceRefreshGeoData(dataDir string) error {
+	if dataDir == "" {
+		dataDir = server.DefaultDataDir
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return fmt.Errorf("failed to create data directory: %w", err)
+	}
+
+	// Remove existing files to force re-download
+	geoIPPath := filepath.Join(dataDir, acl.DefaultGeoIPFilename(acl.GeoIPFormatMMDB))
+	geoSitePath := filepath.Join(dataDir, acl.DefaultGeoSiteFilename(acl.GeoSiteFormatSing))
+
+	_ = os.Remove(geoIPPath)
+	_ = os.Remove(geoSitePath)
+
+	loader := &acl.AutoGeoLoader{
+		DataDir:       dataDir,
+		GeoIPFormat:   acl.GeoIPFormatMMDB,
+		GeoSiteFormat: acl.GeoSiteFormatSing,
+		GeoIPURL:      acl.MetaCubeXGeoIPMMDBURL,
+		GeoSiteURL:    acl.MetaCubeXGeoSiteDBURL,
+		Logger: func(format string, args ...interface{}) {
+			log.Infof(format, args...)
+		},
+	}
+
+	log.Info("Refreshing geoip database...")
+	if _, err := loader.LoadGeoIP(); err != nil {
+		return fmt.Errorf("failed to refresh geoip: %w", err)
+	}
+	log.Info("geoip database refreshed")
+
+	log.Info("Refreshing geosite database...")
+	if _, err := loader.LoadGeoSite(); err != nil {
+		return fmt.Errorf("failed to refresh geosite: %w", err)
+	}
+	log.Info("geosite database refreshed")
+
+	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 
-	C "github.com/apernet/hysteria/core/v2/server"
 	"github.com/sagernet/sing/common/bufio"
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
@@ -12,14 +11,14 @@ import (
 	"github.com/sagernet/sing/common/uot"
 )
 
-func proxyOutboundTCPWithOutbound(ctx context.Context, conn net.Conn, destination M.Socksaddr, outbound C.Outbound) error {
+func proxyOutboundTCPWithOutbound(ctx context.Context, conn net.Conn, destination M.Socksaddr, outbound Outbound) error {
 	c, err := outbound.TCP(destination.String())
 	if err != nil {
 		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
 		return err
 	}
 
-	err = N.ReportConnHandshakeSuccess(c, conn)
+	err = N.ReportConnHandshakeSuccess(conn, c)
 	if err != nil {
 		return err
 	}
@@ -27,7 +26,7 @@ func proxyOutboundTCPWithOutbound(ctx context.Context, conn net.Conn, destinatio
 	return bufio.CopyConn(ctx, conn, c)
 }
 
-func proxyOutboundUoTWithOutbound(ctx context.Context, conn net.Conn, destination M.Socksaddr, outbound C.Outbound) error {
+func proxyOutboundUoTWithOutbound(ctx context.Context, conn net.Conn, destination M.Socksaddr, outbound Outbound) error {
 	request, err := uot.ReadRequest(conn)
 	if err != nil {
 		err = E.Errors(err, N.ReportHandshakeFailure(conn, err))
@@ -40,7 +39,7 @@ func proxyOutboundUoTWithOutbound(ctx context.Context, conn net.Conn, destinatio
 		return err
 	}
 
-	err = N.ReportConnHandshakeSuccess(c, conn)
+	err = N.ReportConnHandshakeSuccess(conn, conn)
 	if err != nil {
 		return err
 	}

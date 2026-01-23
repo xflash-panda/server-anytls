@@ -127,7 +127,7 @@ func (p *pipe) writeCloseError() error {
 type PipeReader struct{ pipe }
 
 func (r *PipeReader) Read(data []byte) (n int, err error) {
-	return r.pipe.read(data)
+	return r.read(data)
 }
 
 func (r *PipeReader) Close() error {
@@ -135,13 +135,13 @@ func (r *PipeReader) Close() error {
 }
 
 func (r *PipeReader) CloseWithError(err error) error {
-	return r.pipe.closeRead(err)
+	return r.closeRead(err)
 }
 
 type PipeWriter struct{ r PipeReader }
 
 func (w *PipeWriter) Write(data []byte) (n int, err error) {
-	return w.r.pipe.write(data)
+	return w.r.write(data)
 }
 
 func (w *PipeWriter) Close() error {
@@ -149,7 +149,7 @@ func (w *PipeWriter) Close() error {
 }
 
 func (w *PipeWriter) CloseWithError(err error) error {
-	return w.r.pipe.closeWrite(err)
+	return w.r.closeWrite(err)
 }
 
 func Pipe() (*PipeReader, *PipeWriter) {

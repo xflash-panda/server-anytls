@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -15,8 +15,6 @@ import (
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 	api "github.com/xflash-panda/server-client/pkg"
 
-	C "github.com/apernet/hysteria/core/v2/server"
-	"github.com/apernet/hysteria/extras/v2/outbounds"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -36,7 +34,7 @@ type Server struct {
 	certConfig    CertConfig
 	extConfPath   string
 	extConfig     *ExtConfig
-	outbound      C.Outbound
+	outbound      Outbound
 	dataDir       string // 数据文件目录
 	// 服务器状态
 	ctx    context.Context
@@ -172,8 +170,18 @@ func (s *Server) Start() error {
 	}
 	s.tlsConfig = tlsConfig
 
+	// Load extended config if provided
 	if s.extConfPath != "" {
-		viper.SetConfigFile(s.extConfPath)
+		confPath := s.extConfPath
+		// Convert relative path to absolute path based on executable location
+		if !filepath.IsAbs(confPath) {
+			execPath, err := os.Executable()
+			if err == nil {
+				confPath = filepath.Join(filepath.Dir(execPath), confPath)
+			}
+		}
+		logrus.WithField("path", confPath).Info("loading extended config")
+		viper.SetConfigFile(confPath)
 		if err := viper.ReadInConfig(); err != nil {
 			return fmt.Errorf("failed to read ext config: %w", err)
 		}
@@ -182,6 +190,12 @@ func (s *Server) Start() error {
 			return fmt.Errorf("failed to unmarshal ext config: %w", err)
 		}
 		s.extConfig = extConfig
+		logrus.WithFields(logrus.Fields{
+			"outbounds": len(extConfig.Outbounds),
+			"acl_rules": len(extConfig.ACL.Inline),
+		}).Info("extended config loaded")
+	} else {
+		logrus.Info("no extended config path provided")
 	}
 
 	s.userService = service.NewUsersService(&s.serviceConfig, apiClient)
@@ -195,59 +209,11 @@ func (s *Server) Start() error {
 		s.tlsConfig.InsecureSkipVerify = true
 	}
 
-	var uOb outbounds.PluggableOutbound
-	if s.extConfig != nil {
-		var obs []outbounds.OutboundEntry
-		if len(s.extConfig.Outbounds) == 0 {
-			obs = []outbounds.OutboundEntry{{
-				Name:     "default",
-				Outbound: outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto),
-			}}
-		} else {
-			obs = make([]outbounds.OutboundEntry, len(s.extConfig.Outbounds))
-			for i, entry := range s.extConfig.Outbounds {
-				if entry.Name == "" {
-					return configError{Field: "outbounds.name", Err: errors.New("empty outbound name")}
-				}
-				var ob outbounds.PluggableOutbound
-				var err error
-				switch strings.ToLower(entry.Type) {
-				case "direct":
-					ob, err = serverConfigOutboundDirectToOutbound(entry.Direct)
-				case "socks5":
-					ob, err = serverConfigOutboundSOCKS5ToOutbound(entry.SOCKS5)
-				case "http":
-					ob, err = serverConfigOutboundHTTPToOutbound(entry.HTTP)
-				default:
-					err = configError{Field: "outbounds.type", Err: errors.New("unsupported outbound type")}
-				}
-				if err != nil {
-					return err
-				}
-				obs[i] = outbounds.OutboundEntry{Name: entry.Name, Outbound: ob}
-			}
-		}
-		gLoader := &GeoLoader{
-			GeoIPFilename:   "",
-			GeoSiteFilename: "",
-			UpdateInterval:  geoDefaultUpdateInterval,
-			DownloadFunc:    geoDownloadFunc,
-			DownloadErrFunc: geoDownloadErrFunc,
-		}
-
-		if len(s.extConfig.ACL.Inline) > 0 {
-			aclOutbound, err := outbounds.NewACLEngineFromString(strings.Join(s.extConfig.ACL.Inline, "\n"), obs, gLoader)
-			if err != nil {
-				return configError{Field: "acl.inline", Err: err}
-			}
-			uOb = aclOutbound
-		} else {
-			uOb = obs[0].Outbound
-		}
-	} else {
-		uOb = outbounds.NewDirectOutboundSimple(outbounds.DirectOutboundModeAuto)
+	// Build outbound using acl-engine
+	if err := s.buildOutbound(); err != nil {
+		return fmt.Errorf("failed to build outbound: %w", err)
 	}
-	s.outbound = &outbounds.PluggableOutboundAdapter{PluggableOutbound: uOb}
+
 	addr := fmt.Sprintf(":%d", s.anyTLSConfig.ServerPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
