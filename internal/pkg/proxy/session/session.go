@@ -18,7 +18,6 @@ import (
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
 
-	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sirupsen/logrus"
 )
@@ -38,7 +37,7 @@ type Session struct {
 	synDoneLock sync.Mutex
 	seq         uint64
 	idleSince   time.Time
-	padding     *common.TypedValue[*padding.PaddingFactory]
+	padding     *atomic.Pointer[padding.PaddingFactory]
 	peerVersion byte
 	isClient    bool
 	sendPadding bool
@@ -48,7 +47,7 @@ type Session struct {
 	onNewStream func(stream *Stream)
 }
 
-func NewClientSession(conn net.Conn, _padding *common.TypedValue[*padding.PaddingFactory]) *Session {
+func NewClientSession(conn net.Conn, _padding *atomic.Pointer[padding.PaddingFactory]) *Session {
 	s := &Session{
 		conn:        conn,
 		isClient:    true,
@@ -60,7 +59,7 @@ func NewClientSession(conn net.Conn, _padding *common.TypedValue[*padding.Paddin
 	return s
 }
 
-func NewServerSession(conn net.Conn, onNewStream func(stream *Stream), _padding *common.TypedValue[*padding.PaddingFactory]) *Session {
+func NewServerSession(conn net.Conn, onNewStream func(stream *Stream), _padding *atomic.Pointer[padding.PaddingFactory]) *Session {
 	s := &Session{
 		conn:        conn,
 		onNewStream: onNewStream,

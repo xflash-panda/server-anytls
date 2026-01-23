@@ -14,7 +14,6 @@ import (
 	"github.com/xflash-panda/server-anytls/internal/pkg/util"
 
 	"github.com/chen3feng/stl4go"
-	"github.com/sagernet/sing/common"
 )
 
 type Client struct {
@@ -34,7 +33,7 @@ type Client struct {
 
 	sessionsLock sync.Mutex
 
-	padding *common.TypedValue[*padding.PaddingFactory]
+	padding *atomic.Pointer[padding.PaddingFactory]
 
 	idleSessionTimeout time.Duration
 
@@ -42,7 +41,7 @@ type Client struct {
 }
 
 func NewClient(ctx context.Context, dialOut util.DialOutFunc,
-	_padding *common.TypedValue[*padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
+	_padding *atomic.Pointer[padding.PaddingFactory], idleSessionCheckInterval, idleSessionTimeout time.Duration, minIdleSession int,
 ) *Client {
 	c := &Client{
 		sessions:           make(map[uint64]*Session),
@@ -95,7 +94,7 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 
 	stream, err = session.OpenStream()
 	if err != nil {
-		session.Close()
+		_ = session.Close()
 		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
@@ -105,7 +104,7 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 			select {
 			case <-c.die.Done():
 				// Now client has been closed
-				go session.Close()
+				go func() { _ = session.Close() }()
 			default:
 				c.idleSessionLock.Lock()
 				session.idleSince = time.Now()
@@ -175,7 +174,7 @@ func (c *Client) Close() error {
 	c.sessions = make(map[uint64]*Session)
 	c.sessionsLock.Unlock()
 	for _, session := range sessionToClose {
-		session.Close()
+		_ = session.Close()
 	}
 	return nil
 }
@@ -207,6 +206,6 @@ func (c *Client) idleCleanupExpTime(expTime time.Time) {
 	}
 	c.idleSessionLock.Unlock()
 	for _, session := range sessionToClose {
-		session.Close()
+		_ = session.Close()
 	}
 }

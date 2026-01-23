@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
-
-	C "github.com/apernet/hysteria/core/v2/server"
 )
 
 const (
@@ -75,18 +73,9 @@ type serverConfigOutboundHTTP struct {
 	Insecure bool   `mapstructure:"insecure"`
 }
 
-// func geoDownloadFunc(filename, url string) {
-// 	log.Info("downloading database", zap.String("filename", filename), zap.String("url", url))
-// }
-
-// func geoDownloadErrFunc(err error) {
-// 	if err != nil {
-// 		log.Error("failed to download database", zap.Error(err))
-// 	}
-// }
-
+// udpConnAdapter adapts our UDPConn interface to net.PacketConn.
 type udpConnAdapter struct {
-	C.UDPConn
+	UDPConn // from outbound_adapter.go
 }
 
 func (a *udpConnAdapter) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
