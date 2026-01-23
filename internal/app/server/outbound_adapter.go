@@ -29,7 +29,13 @@ func (a *OutboundAdapter) TCP(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.router.DialTCP(oa)
+	conn, err := a.router.DialTCP(oa)
+	if err != nil {
+		log.WithFields(log.Fields{"addr": addr, "error": err}).Debug("outbound TCP dial failed")
+	} else {
+		log.WithField("addr", addr).Debug("outbound TCP dial success")
+	}
+	return conn, err
 }
 
 // UDP creates a UDP connection for the given address string.

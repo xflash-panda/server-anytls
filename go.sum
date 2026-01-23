@@ -76,8 +76,8 @@ github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301 h1:d/Wr/Vl/wiJHc
 github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301/go.mod h1:ntmMHL/xPq1WLeKiw8p/eRATaae6PiVRNipHFJxI8PM=
 github.com/urfave/cli/v2 v2.27.7 h1:bH59vdhbjLv3LAvIu6gd0usJHgoTTPhCFib8qqOwXYU=
 github.com/urfave/cli/v2 v2.27.7/go.mod h1:CyNAG/xg+iAOg0N4MPGZqVmv2rCoP267496AOXUZjA4=
-github.com/xflash-panda/acl-engine v0.2.1 h1:GpUYGJUlZQ2rGNfZiMV5l15afzou40nA9fWx9jmIEWA=
-github.com/xflash-panda/acl-engine v0.2.1/go.mod h1:Wz9y+LJFw76jo8t9BJxaqdmVE/nB7czbNAHRkRwReXE=
+github.com/xflash-panda/acl-engine v0.2.2 h1:GwzcRjdHrtOCL8jfXkBX3vMULlqXlslsOB4vUtImmC4=
+github.com/xflash-panda/acl-engine v0.2.2/go.mod h1:Wz9y+LJFw76jo8t9BJxaqdmVE/nB7czbNAHRkRwReXE=
 github.com/xflash-panda/server-agent-proto v0.0.8 h1:6j+0AIMiuEiNa6NQn0v6/YARTzJWuPcS7cJbBxoqpDU=
 github.com/xflash-panda/server-agent-proto v0.0.8/go.mod h1:GjgjWY2IfPORsrX5NhUxWnfbS7gSrwFIHZhgqX2Nf/k=
 github.com/xflash-panda/server-client v0.1.5 h1:MrAdhdWhPrANGxEtgqUukpWKE+oaOz/r14DFAh+9Wr8=

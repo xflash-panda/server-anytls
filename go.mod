@@ -10,7 +10,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
-	github.com/xflash-panda/acl-engine v0.2.1
+	github.com/xflash-panda/acl-engine v0.2.2
 	github.com/xflash-panda/server-agent-proto v0.0.8
 	github.com/xflash-panda/server-client v0.1.5
 	google.golang.org/grpc v1.78.0
