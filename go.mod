@@ -6,14 +6,13 @@ toolchain go1.24.9
 
 require (
 	github.com/chen3feng/stl4go v0.1.1
-	github.com/sagernet/sing v0.4.2
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sagernet/sing v0.7.14
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xflash-panda/acl-engine v0.2.1
 	github.com/xflash-panda/server-agent-proto v0.0.8
 	github.com/xflash-panda/server-client v0.1.5
-	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.78.0
 )
 
@@ -40,7 +39,6 @@ require (
 	github.com/txthinking/runnergroup v0.0.0-20210608031112-152c7c4432bf // indirect
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
