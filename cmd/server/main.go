@@ -21,7 +21,7 @@ import (
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.2.1"
+	Version   = "0.2.2"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -30,7 +30,7 @@ func main() {
 	var serviceConfig service.Config
 	var certConfig server.CertConfig
 	var logLevel string
-	var extConfPath string
+	var aclConfPath string
 	var dataDir string
 	var refreshGeoData bool
 
@@ -56,11 +56,11 @@ func main() {
 				Destination: &apiConfig.Token,
 			},
 			&cli.StringFlag{
-				Name:        "ext_conf_file",
-				Usage:       "Extended profiles for ACL and Outbounds(.yaml format)",
-				EnvVars:     []string{"X_PANDA_ANYTLS_EXT_CONF_FILE", "EXT_CONF_FILE"},
+				Name:        "acl_conf_file",
+				Usage:       "ACL config file for ACL and Outbounds (.yaml format)",
+				EnvVars:     []string{"X_PANDA_ANYTLS_ACL_CONF_FILE", "ACL_CONF_FILE"},
 				Required:    false,
-				Destination: &extConfPath,
+				Destination: &aclConfPath,
 			},
 			&cli.StringFlag{
 				Name:        "cert_file",
@@ -169,7 +169,7 @@ func main() {
 				}
 			}
 
-			srv, err = server.New(apiConfig, serviceConfig, certConfig, extConfPath, dataDir)
+			srv, err = server.New(apiConfig, serviceConfig, certConfig, aclConfPath, dataDir)
 			if err != nil {
 				log.WithError(err).Error("failed to init server")
 				return err

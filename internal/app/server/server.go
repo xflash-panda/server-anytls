@@ -32,7 +32,7 @@ type Server struct {
 	apiConfig     api.Config
 	serviceConfig service.Config
 	certConfig    CertConfig
-	extConfPath   string
+	aclConfPath   string
 	extConfig     *ExtConfig
 	outbound      Outbound
 	dataDir       string // 数据文件目录
@@ -64,7 +64,7 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 	return nil
 }
 
-func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConfig, extConfPath string, dataDir string) (*Server, error) {
+func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConfig, aclConfPath string, dataDir string) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	if dataDir == "" {
 		dataDir = DefaultDataDir
@@ -73,7 +73,7 @@ func New(apiConfig api.Config, serviceConfig service.Config, certConfig CertConf
 		apiConfig:     apiConfig,
 		serviceConfig: serviceConfig,
 		certConfig:    certConfig,
-		extConfPath:   extConfPath,
+		aclConfPath:   aclConfPath,
 		dataDir:       dataDir,
 		ctx:           ctx,
 		cancel:        cancel,
@@ -170,9 +170,9 @@ func (s *Server) Start() error {
 	}
 	s.tlsConfig = tlsConfig
 
-	// Load extended config if provided
-	if s.extConfPath != "" {
-		confPath := s.extConfPath
+	// Load ACL config if provided
+	if s.aclConfPath != "" {
+		confPath := s.aclConfPath
 		// Convert relative path to absolute path based on executable location
 		if !filepath.IsAbs(confPath) {
 			execPath, err := os.Executable()
@@ -180,22 +180,27 @@ func (s *Server) Start() error {
 				confPath = filepath.Join(filepath.Dir(execPath), confPath)
 			}
 		}
-		logrus.WithField("path", confPath).Info("loading extended config")
+		// Validate YAML format
+		ext := filepath.Ext(confPath)
+		if ext != ".yaml" && ext != ".yml" {
+			return fmt.Errorf("ACL config file must be in YAML format (.yaml or .yml), got: %s", ext)
+		}
+		logrus.WithField("path", confPath).Info("loading ACL config")
 		viper.SetConfigFile(confPath)
 		if err := viper.ReadInConfig(); err != nil {
-			return fmt.Errorf("failed to read ext config: %w", err)
+			return fmt.Errorf("failed to read ACL config: %w", err)
 		}
 		var extConfig *ExtConfig
 		if err := viper.Unmarshal(&extConfig); err != nil {
-			return fmt.Errorf("failed to unmarshal ext config: %w", err)
+			return fmt.Errorf("failed to unmarshal ACL config: %w", err)
 		}
 		s.extConfig = extConfig
 		logrus.WithFields(logrus.Fields{
 			"outbounds": len(extConfig.Outbounds),
 			"acl_rules": len(extConfig.ACL.Inline),
-		}).Info("extended config loaded")
+		}).Info("ACL config loaded")
 	} else {
-		logrus.Info("no extended config path provided")
+		logrus.Info("no ACL config path provided")
 	}
 
 	s.userService = service.NewUsersService(&s.serviceConfig, apiClient)
