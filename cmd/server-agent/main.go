@@ -24,7 +24,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.2.2"
+	Version   = "0.2.3"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -34,7 +34,7 @@ func main() {
 	var serviceConfig service.Config
 	var certConfig server.CertConfig
 	var logLevel string
-	var extConfPath string
+	var aclConfPath string
 	var dataDir string
 	var refreshGeoData bool
 
@@ -60,11 +60,11 @@ func main() {
 				Destination: &agentPort,
 			},
 			&cli.StringFlag{
-				Name:        "ext_conf_file",
-				Usage:       "extended profiles for ACL and Outbounds(.yaml format)",
-				EnvVars:     []string{"X_PANDA_ANYTLS_EXT_CONF_FILE", "EXT_CONF_FILE"},
+				Name:        "acl_conf_file",
+				Usage:       "ACL config file for ACL and Outbounds (.yaml format)",
+				EnvVars:     []string{"X_PANDA_ANYTLS_ACL_CONF_FILE", "ACL_CONF_FILE"},
 				Required:    false,
-				Destination: &extConfPath,
+				Destination: &aclConfPath,
 			},
 			&cli.StringFlag{
 				Name:        "cert_file",
@@ -189,7 +189,7 @@ func main() {
 				AgentClient:   agentClient,
 				ServiceConfig: &serviceConfig,
 				CertConfig:    certConfig,
-				ExtConfPath:   extConfPath,
+				ACLConfPath:   aclConfPath,
 				DataDir:       dataDir,
 			}
 			srv, err = server.New(opts)

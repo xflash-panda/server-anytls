@@ -80,7 +80,7 @@ type Options struct {
 	AgentClient   pb.AgentClient
 	ServiceConfig *service.Config
 	CertConfig    CertConfig
-	ExtConfPath   string
+	ACLConfPath   string
 	DataDir       string
 }
 

@@ -41,9 +41,9 @@ func (s *Server) initializeFromOptions() error {
 	}
 	s.tlsConfig = tlsCfg
 
-	// Load extended config if provided
-	if s.opts.ExtConfPath != "" {
-		confPath := s.opts.ExtConfPath
+	// Load ACL config if provided
+	if s.opts.ACLConfPath != "" {
+		confPath := s.opts.ACLConfPath
 		// Convert relative path to absolute path based on executable location
 		if !filepath.IsAbs(confPath) {
 			execPath, err := os.Executable()
@@ -51,22 +51,29 @@ func (s *Server) initializeFromOptions() error {
 				confPath = filepath.Join(filepath.Dir(execPath), confPath)
 			}
 		}
-		log.WithField("path", confPath).Info("loading extended config")
+
+		// Check if file has .yaml or .yml extension
+		ext := filepath.Ext(confPath)
+		if ext != ".yaml" && ext != ".yml" {
+			return fmt.Errorf("acl config file must be in YAML format (.yaml or .yml), got: %s", ext)
+		}
+
+		log.WithField("path", confPath).Info("loading ACL config")
 		viper.SetConfigFile(confPath)
 		if err := viper.ReadInConfig(); err != nil {
-			return fmt.Errorf("failed to read ext config: %w", err)
+			return fmt.Errorf("failed to read ACL config: %w", err)
 		}
 		var extCfg *ExtConfig
 		if err := viper.Unmarshal(&extCfg); err != nil {
-			return fmt.Errorf("failed to unmarshal ext config: %w", err)
+			return fmt.Errorf("failed to unmarshal ACL config: %w", err)
 		}
 		s.extConfig = extCfg
 		log.WithFields(log.Fields{
 			"outbounds": len(extCfg.Outbounds),
 			"acl_rules": len(extCfg.ACL.Inline),
-		}).Info("extended config loaded")
+		}).Info("ACL config loaded")
 	} else {
-		log.Info("no extended config path provided")
+		log.Info("no ACL config path provided")
 	}
 
 	// Initialize user service
