@@ -262,8 +262,10 @@ func (s *Server) Close() error {
 	case <-time.After(30 * time.Second):
 		logrus.Warn("timeout waiting for connections to close")
 	}
-	if err := s.userService.Close(); err != nil {
-		return fmt.Errorf("failed to close user service: %w", err)
+	if s.userService != nil {
+		if err := s.userService.Close(); err != nil {
+			return fmt.Errorf("failed to close user service: %w", err)
+		}
 	}
 	logrus.Info("server stopped")
 	return nil
