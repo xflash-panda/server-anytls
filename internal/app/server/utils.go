@@ -58,5 +58,3 @@ func serverConfigOutboundHTTPToOutbound(c serverConfigOutboundHTTP) (outbound.Ou
 	}
 	return outbound.NewHTTP(c.URL, c.Insecure)
 }
-
-
