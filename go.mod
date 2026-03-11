@@ -7,11 +7,11 @@ toolchain go1.24.9
 require (
 	github.com/chen3feng/stl4go v0.1.1
 	github.com/sagernet/sing v0.7.14
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xflash-panda/acl-engine v0.4.0
-	github.com/xflash-panda/server-client v0.1.5
+	github.com/xflash-panda/server-client v0.2.1
 )
 
 require (
@@ -19,7 +19,7 @@ require (
 	github.com/database64128/netx-go v0.1.1 // indirect
 	github.com/database64128/tfo-go/v2 v2.3.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-resty/resty/v2 v2.17.0 // indirect
+	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.1 // indirect
