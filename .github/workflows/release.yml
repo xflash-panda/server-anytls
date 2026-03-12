@@ -35,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - name: Get project dependencies
         run: go mod download
 
@@ -75,7 +75,7 @@ jobs:
       # Upload to artifacts
 
       - name: Upload files to Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-anytls-agent-${{ steps.get_filename.outputs.ASSET_NAME }}
           path: |
