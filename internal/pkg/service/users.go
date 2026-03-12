@@ -43,7 +43,7 @@ func (s *UsersService) init() error {
 	if s.config.RegisterID == "" {
 		return errors.New("register id is not set")
 	}
-	userList, err := s.client.Users(s.config.RegisterID, api.AnyTLS)
+	userList, err := s.client.Users(s.ctx, s.config.RegisterID, api.AnyTLS)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func (s *UsersService) FetchUsersTask() error {
 	s.updateMutex.Lock()
 	defer s.updateMutex.Unlock()
 
-	newUserList, err := s.client.Users(s.config.RegisterID, api.AnyTLS)
+	newUserList, err := s.client.Users(s.ctx, s.config.RegisterID, api.AnyTLS)
 	if err != nil {
 		if errors.Is(err, api.ErrorUserNotModified) {
 			log.Infoln("user not modified:", err)
@@ -185,7 +185,7 @@ func (s *UsersService) ReportTrafficsTask() error {
 	userTraffics := s.toUserTraffics()
 	log.Infof("%d user traffic needs to be reported", len(userTraffics))
 	if len(userTraffics) > 0 {
-		err := s.client.Submit(s.config.RegisterID, api.AnyTLS, userTraffics)
+		err := s.client.Submit(s.ctx, s.config.RegisterID, api.AnyTLS, userTraffics)
 		if err != nil {
 			log.Errorln("report traffics task error:", err)
 			return nil
@@ -197,7 +197,7 @@ func (s *UsersService) ReportTrafficsTask() error {
 
 func (s *UsersService) HeartbeatTask() error {
 	log.Infoln("heartbeat task")
-	if err := s.client.Heartbeat(s.config.RegisterID, api.AnyTLS, ""); err != nil {
+	if err := s.client.Heartbeat(s.ctx, s.config.RegisterID, api.AnyTLS, ""); err != nil {
 		return err
 	}
 	return nil

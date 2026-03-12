@@ -101,7 +101,7 @@ func (s *Server) Start() error {
 
 	// 第一步：先获取节点配置信息
 	logrus.Infof("Fetching node config for NodeID: %d", s.serviceConfig.NodeID)
-	nodeConf, err := apiClient.Config(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS)
+	nodeConf, err := apiClient.Config(s.ctx, api.NodeId(s.serviceConfig.NodeID), api.AnyTLS)
 	if err != nil {
 		return fmt.Errorf("failed to get node config: %w", err)
 	}
@@ -116,7 +116,7 @@ func (s *Server) Start() error {
 		logrus.Infof("Found saved registerID: %s, verifying...", savedState.RegisterID)
 
 		// 调用 Verify 接口验证 register_id 是否有效
-		isValid, err := apiClient.Verify(savedState.RegisterID, api.AnyTLS)
+		isValid, err := apiClient.Verify(s.ctx, savedState.RegisterID, api.AnyTLS)
 		if err != nil {
 			logrus.Warnf("failed to verify registerID: %s, will re-register", err)
 			// 验证失败，清空状态文件
@@ -139,7 +139,7 @@ func (s *Server) Start() error {
 	// 第三步：如果没有有效的 register_id，则进行注册
 	if registerID == "" {
 		logrus.Infof("Registering node with hostname: %s, ServerPort: %d", hostname, s.anyTLSConfig.ServerPort)
-		registerID, err = apiClient.Register(api.NodeId(s.serviceConfig.NodeID), api.AnyTLS, hostname, s.anyTLSConfig.ServerPort, "")
+		registerID, err = apiClient.Register(s.ctx, api.NodeId(s.serviceConfig.NodeID), api.AnyTLS, hostname, s.anyTLSConfig.ServerPort, "")
 		if err != nil {
 			return fmt.Errorf("failed to register node: %w", err)
 		}
@@ -262,7 +262,7 @@ func (s *Server) Close() error {
 	s.closeOnce.Do(func() {
 		// 优先取消注册
 		if s.registerID != "" && s.apiClient != nil {
-			if err := s.apiClient.Unregister(api.AnyTLS, s.registerID); err != nil {
+			if err := s.apiClient.Unregister(context.Background(), api.AnyTLS, s.registerID); err != nil {
 				logrus.WithError(err).Error("failed to unregister node")
 			} else {
 				logrus.WithField("register_id", s.registerID).Info("Node unregistered successfully")
