@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
@@ -39,8 +38,6 @@ type Server struct {
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
-
 	// shutdown state
 	closeOnce sync.Once
 	closeErr  error
@@ -250,11 +247,7 @@ func (s *Server) Start() error {
 			logrus.WithError(err).Error("failed to accept connection")
 			continue
 		}
-		s.wg.Add(1)
-		go func(c net.Conn) {
-			defer s.wg.Done()
-			handleTcpConnection(s.ctx, c, s)
-		}(conn)
+		go handleTcpConnection(s.ctx, conn, s)
 	}
 }
 
@@ -279,18 +272,6 @@ func (s *Server) Close() error {
 			if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 				s.closeErr = fmt.Errorf("failed to close listener: %w", err)
 			}
-		}
-		// 关闭所有连接
-		done := make(chan struct{})
-		go func() {
-			s.wg.Wait()
-			close(done)
-		}()
-		select {
-		case <-done:
-			logrus.Info("all connections closed")
-		case <-time.After(30 * time.Second):
-			logrus.Warn("timeout waiting for connections to close")
 		}
 		// 关闭用户服务（判空以适配启动早期失败场景）
 		if s.userService != nil {
