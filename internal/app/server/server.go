@@ -255,7 +255,9 @@ func (s *Server) Close() error {
 	s.closeOnce.Do(func() {
 		// 优先取消注册
 		if s.registerID != "" && s.apiClient != nil {
-			if err := s.apiClient.Unregister(context.Background(), api.AnyTLS, s.registerID); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), service.DefaultTimeout)
+			defer cancel()
+			if err := s.apiClient.Unregister(ctx, api.AnyTLS, s.registerID); err != nil {
 				logrus.WithError(err).Error("failed to unregister node")
 			} else {
 				logrus.WithField("register_id", s.registerID).Info("Node unregistered successfully")
