@@ -8,8 +8,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"sync"
-	"time"
 
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
@@ -38,7 +36,6 @@ type Server struct {
 	// 服务器状态
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
 }
 
 func validateConfig(anyTLSConfig *api.AnyTLSConfig, userService *service.UsersService, tlsConfig *tls.Config) error {
@@ -219,11 +216,7 @@ func (s *Server) Start() error {
 			logrus.WithError(err).Error("failed to accept connection")
 			continue
 		}
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
-			handleTcpConnection(s.ctx, conn, s)
-		}()
+		go handleTcpConnection(s.ctx, conn, s)
 	}
 }
 
@@ -250,17 +243,6 @@ func (s *Server) Close() error {
 		if err := s.listener.Close(); err != nil {
 			return fmt.Errorf("failed to close listener: %w", err)
 		}
-	}
-	done := make(chan struct{})
-	go func() {
-		s.wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-		logrus.Info("all connections closed")
-	case <-time.After(30 * time.Second):
-		logrus.Warn("timeout waiting for connections to close")
 	}
 	if s.userService != nil {
 		if err := s.userService.Close(); err != nil {
