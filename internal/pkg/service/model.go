@@ -3,7 +3,9 @@ package service
 import "time"
 
 const (
-	DefaultTimeout = 15 * time.Second
+	DefaultTimeout   = 15 * time.Second
+	FetchUserTimeout = 60 * time.Second
+	MaxRecvMsgSize   = 16 * 1024 * 1024 // 16MB
 )
 
 type Service interface {

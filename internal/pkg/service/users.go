@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"runtime"
 	"sync"
 	"time"
 
@@ -49,7 +48,7 @@ func NewUsersService(config *Config, client pb.AgentClient) *UsersService {
 }
 
 func (s *UsersService) init() error {
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), FetchUserTimeout)
 	defer cancel()
 	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS, NodeId: int32(s.config.NodeID)})
 	if err != nil {
@@ -77,8 +76,6 @@ func (s *UsersService) Start() error {
 	}
 
 	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 		ticker := time.NewTicker(s.config.FetchUserInterval)
 		defer ticker.Stop()
 		for {
@@ -94,8 +91,6 @@ func (s *UsersService) Start() error {
 	}()
 
 	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 		ticker := time.NewTicker(s.config.ReportTrafficInterval)
 		defer ticker.Stop()
 		for {
@@ -111,8 +106,6 @@ func (s *UsersService) Start() error {
 	}()
 
 	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 		ticker := time.NewTicker(s.config.HeartBeatInterval)
 		defer ticker.Stop()
 		for {
@@ -174,7 +167,7 @@ func (s *UsersService) FetchUsersTask() error {
 	s.updateMutex.Lock()
 	defer s.updateMutex.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), FetchUserTimeout)
 	defer cancel()
 	r, err := s.client.Users(ctx, &pb.UsersRequest{NodeType: pb.NodeType_ANYTLS, NodeId: int32(s.config.NodeID)})
 	if err != nil {
@@ -222,7 +215,8 @@ func (s *UsersService) ReportTrafficsTask() error {
 		defer cancel()
 		_, err := s.client.Submit(ctx, &pb.SubmitRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID, RawData: trafficsRawResult.Data, RawStats: statsRawResult.Data})
 		if err != nil {
-			log.Errorln(err)
+			log.Errorln("report traffics error:", err)
+			return nil
 		}
 		s.trafficManager.clear()
 	}
@@ -236,7 +230,7 @@ func (s *UsersService) HeartBeatTask() error {
 	log.Infoln("heartbeat...")
 	_, err := s.client.Heartbeat(ctx, &pb.HeartbeatRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID})
 	if err != nil {
-		log.Errorln(err)
+		log.Errorln("heartbeat error:", err)
 		return nil
 	}
 	return nil

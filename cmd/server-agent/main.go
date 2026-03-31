@@ -24,7 +24,7 @@ import (
 
 const (
 	Name      = "anytls-agent-node"
-	Version   = "0.2.9"
+	Version   = "0.2.10"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -173,11 +173,13 @@ func main() {
 			}
 
 			agentAddr := fmt.Sprintf("%s:%d", agentHost, agentPort)
-			agentConn, err := grpc.NewClient(agentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(
-				keepalive.ClientParameters{
-					Time:                30 * time.Second, // 每30秒发送一次keepalive探测
-					Timeout:             10 * time.Second, // 如果10秒内没有响应，则认为连接断开
-					PermitWithoutStream: true,             // 允许即使没有活动流的情况下也发送探测
+			agentConn, err := grpc.NewClient(agentAddr,
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(service.MaxRecvMsgSize)),
+				grpc.WithKeepaliveParams(keepalive.ClientParameters{
+					Time:                30 * time.Second,
+					Timeout:             10 * time.Second,
+					PermitWithoutStream: true,
 				}))
 			if err != nil {
 				return fmt.Errorf("agent server connect error : %v", err)
