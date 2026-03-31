@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -76,6 +77,8 @@ func (s *UsersService) Start() error {
 	}
 
 	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
 		ticker := time.NewTicker(s.config.FetchUserInterval)
 		defer ticker.Stop()
 		for {
@@ -91,6 +94,8 @@ func (s *UsersService) Start() error {
 	}()
 
 	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
 		ticker := time.NewTicker(s.config.ReportTrafficInterval)
 		defer ticker.Stop()
 		for {
@@ -106,6 +111,8 @@ func (s *UsersService) Start() error {
 	}()
 
 	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
 		ticker := time.NewTicker(s.config.HeartBeatInterval)
 		defer ticker.Stop()
 		for {
