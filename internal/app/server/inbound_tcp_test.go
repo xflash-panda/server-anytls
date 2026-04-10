@@ -8,19 +8,19 @@ import (
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
 )
 
-// TestCountedConnDirectPointerTraffic verifies that CountedConn uses a direct
-// userService pointer for traffic tracking, not context.Value on every I/O.
+// TestCountedConnDirectPointerTraffic verifies that CountedConn uses a cached
+// TrafficItem pointer for traffic tracking, bypassing sync.Map on every I/O.
 func TestCountedConnDirectPointerTraffic(t *testing.T) {
 	server, client := net.Pipe()
 	defer server.Close()
 	defer client.Close()
 
 	us := service.NewUsersServiceWithTrafficManager(service.NewExportedTrafficManager())
+	item := us.GetTrafficItem(1)
 
 	cc := &CountedConn{
 		Conn:        server,
-		userId:      1,
-		userService: us,
+		trafficItem: item,
 	}
 
 	// Write from client side, read from CountedConn
@@ -33,10 +33,9 @@ func TestCountedConnDirectPointerTraffic(t *testing.T) {
 		t.Fatalf("read error: %v", err)
 	}
 
-	// Verify upload traffic recorded via direct pointer
-	item := us.GetTrafficItem(1)
-	if item.Up.Value() != uint64(n) {
-		t.Fatalf("expected Up=%d, got %d", n, item.Up.Value())
+	// Verify upload traffic recorded via cached pointer
+	if item.Up.Load() != uint64(n) {
+		t.Fatalf("expected Up=%d, got %d", n, item.Up.Load())
 	}
 
 	// Write from CountedConn to client
@@ -51,7 +50,7 @@ func TestCountedConnDirectPointerTraffic(t *testing.T) {
 	}
 
 	// Verify download traffic recorded
-	if item.Down.Value() != uint64(n) {
-		t.Fatalf("expected Down=%d, got %d", n, item.Down.Value())
+	if item.Down.Load() != uint64(n) {
+		t.Fatalf("expected Down=%d, got %d", n, item.Down.Load())
 	}
 }

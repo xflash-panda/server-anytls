@@ -33,7 +33,7 @@ func TestGetTrafficItemConcurrentNoLostTraffic(t *testing.T) {
 	wg.Wait()
 
 	item := s.GetTrafficItem(userId)
-	got := item.Up.Value()
+	got := item.Up.Load()
 	if got != goroutines {
 		t.Fatalf("expected Up=%d, got %d (lost %d updates due to race)",
 			goroutines, got, goroutines-got)
