@@ -11,6 +11,70 @@ import (
 	"github.com/xflash-panda/server-anytls/internal/pkg/proxy/padding"
 )
 
+// writeCountingConn counts how many Write calls are made per logical operation.
+type writeCountingConn struct {
+	net.Conn
+	writeCount atomic.Int32
+}
+
+func (c *writeCountingConn) Write(b []byte) (int, error) {
+	c.writeCount.Add(1)
+	return c.Conn.Write(b)
+}
+
+func (c *writeCountingConn) SetWriteDeadline(t time.Time) error {
+	return c.Conn.SetWriteDeadline(t)
+}
+
+// TestWriteConnLockedBatchesPaddingWrites verifies that when padding is active,
+// writeConnLocked batches all padding + payload into a single conn.Write call
+// instead of multiple calls. Multiple syscalls under connLock cause all other
+// streams to stall while padding bytes trickle out one write at a time.
+func TestWriteConnLockedBatchesPaddingWrites(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	counter := &writeCountingConn{Conn: serverConn}
+	sess := NewClientSession(counter, &padding.DefaultPaddingFactory)
+	sess.sendPadding = true
+	sess.pktCounter.Store(0) // reset so padding is active (pkt < Stop)
+
+	// Drain client side
+	go func() {
+		buf := make([]byte, 65536)
+		for {
+			if _, err := clientConn.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Build a data frame payload
+	payload := make([]byte, 100)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	// Write multiple data frames while padding is active
+	const numFrames = 5
+	for i := range numFrames {
+		counter.writeCount.Store(0)
+		sess.pktCounter.Store(uint32(i)) // keep padding active
+
+		sess.connLock.Lock()
+		_, err := sess.writeConnLocked(payload)
+		sess.connLock.Unlock()
+		if err != nil {
+			t.Fatalf("frame %d: writeConnLocked error: %v", i, err)
+		}
+
+		writes := counter.writeCount.Load()
+		if writes > 1 {
+			t.Fatalf("frame %d: expected 1 conn.Write call (batched), got %d (padding caused multiple syscalls under connLock)", i, writes)
+		}
+	}
+}
+
 // deadlineTrackingConn wraps a net.Conn and records whether a write deadline
 // was active when Write() was called.
 type deadlineTrackingConn struct {

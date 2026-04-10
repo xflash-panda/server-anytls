@@ -2,65 +2,65 @@ package pipe
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type PipeDeadline struct {
 	mu     sync.Mutex
 	timer  *time.Timer
-	cancel chan struct{}
+	cancel atomic.Pointer[chan struct{}]
 }
 
 func MakePipeDeadline() PipeDeadline {
-	return PipeDeadline{cancel: make(chan struct{})}
+	d := PipeDeadline{}
+	ch := make(chan struct{})
+	d.cancel.Store(&ch)
+	return d //nolint:govet // value assigned to struct field, used via pointer receiver only
 }
 
 func (d *PipeDeadline) Set(t time.Time) {
 	d.mu.Lock()
-
 	defer d.mu.Unlock()
 
+	cancel := *d.cancel.Load()
 	if d.timer != nil && !d.timer.Stop() {
-		<-d.cancel
+		<-cancel
 	}
 	d.timer = nil
 
-	closed := isClosedChan(d.cancel)
+	closed := isClosedChan(cancel)
 	if t.IsZero() {
 		if closed {
-			d.cancel = make(chan struct{})
+			ch := make(chan struct{})
+			d.cancel.Store(&ch)
 		}
 		return
 	}
 
 	if dur := time.Until(t); dur > 0 {
-
 		if closed {
-			d.cancel = make(chan struct{})
+			ch := make(chan struct{})
+			d.cancel.Store(&ch)
 		}
-
 		d.timer = time.AfterFunc(dur, func() {
-			close(d.cancel)
+			close(*d.cancel.Load())
 		})
 		return
 	}
 
 	if !closed {
-		close(d.cancel)
+		close(cancel)
 	}
 }
 
+// Wait returns the cancel channel using an atomic load (lock-free).
 func (d *PipeDeadline) Wait() chan struct{} {
-	d.mu.Lock()
-
-	defer d.mu.Unlock()
-
-	return d.cancel
+	return *d.cancel.Load()
 }
 
 func isClosedChan(c <-chan struct{}) bool {
 	select {
-
 	case <-c:
 		return true
 	default:
