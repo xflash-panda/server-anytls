@@ -48,6 +48,7 @@ type Session struct {
 	buffering   bool
 	buffer      []byte
 	pktCounter  atomic.Uint32
+	paddingBuf  []byte
 	onNewStream func(stream *Stream)
 }
 
@@ -175,26 +176,27 @@ func (s *Session) recvLoop() error {
 	defer s.Close()
 	var receivedSettingsFromClient bool
 	var hdr rawHeader
+	var readBuf []byte
 	for {
-		if s.IsClosed() {
-			return io.ErrClosedPipe
-		}
 		if _, err := io.ReadFull(s.conn, hdr[:]); err == nil {
 			sid := hdr.StreamID()
 			switch hdr.Cmd() {
 			case cmdPSH:
 				if hdr.Length() > 0 {
-					buffer := buf.Get(int(hdr.Length()))
-					if _, err := io.ReadFull(s.conn, buffer); err == nil {
+					frameLen := int(hdr.Length())
+					if cap(readBuf) < frameLen {
+						readBuf = make([]byte, frameLen)
+					} else {
+						readBuf = readBuf[:frameLen]
+					}
+					if _, err := io.ReadFull(s.conn, readBuf); err == nil {
 						s.streamLock.RLock()
 						stream, ok := s.streams[sid]
 						s.streamLock.RUnlock()
 						if ok {
-							stream.pipeW.Write(buffer)
+							stream.pipeW.Write(readBuf)
 						}
-						buf.Put(buffer)
 					} else {
-						buf.Put(buffer)
 						return err
 					}
 				}
@@ -423,9 +425,13 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 		if pkt < paddingF.Stop {
 			payloadLen := len(b)
 			pktSizes := paddingF.GenerateRecordPayloadSizes(pkt)
-			// Estimate total size: payload + per-slot overhead (header + padding)
+			// Reuse per-session buffer for padding assembly (safe: called under connLock)
 			overhead := len(pktSizes) * (headerOverHeadSize + 1024)
-			assembled := make([]byte, 0, payloadLen+overhead)
+			needed := payloadLen + overhead
+			if cap(s.paddingBuf) < needed {
+				s.paddingBuf = make([]byte, 0, needed)
+			}
+			assembled := s.paddingBuf[:0]
 			for _, l := range pktSizes {
 				remaining := len(b)
 				if l == padding.CheckMark {
@@ -462,6 +468,7 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 			if len(b) > 0 {
 				assembled = append(assembled, b...)
 			}
+			s.paddingBuf = assembled
 			_, err = s.conn.Write(assembled)
 			if err != nil {
 				return 0, err
@@ -469,6 +476,7 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 			return payloadLen, nil
 		}
 		s.sendPadding = false
+		s.paddingBuf = nil
 	}
 	return s.conn.Write(b)
 }

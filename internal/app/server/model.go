@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/tls"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/xflash-panda/server-anytls/internal/pkg/service"
@@ -83,11 +84,11 @@ func (a *udpConnAdapter) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
+	ap, err := netip.ParseAddrPort(addrStr)
 	if err != nil {
 		return 0, nil, err
 	}
-	return n, udpAddr, nil
+	return n, net.UDPAddrFromAddrPort(ap), nil
 }
 
 func (a *udpConnAdapter) WriteTo(p []byte, addr net.Addr) (n int, err error) {
