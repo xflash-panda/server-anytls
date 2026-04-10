@@ -49,6 +49,7 @@ type Session struct {
 	buffer      []byte
 	pktCounter  atomic.Uint32
 	paddingBuf  []byte
+	pktSizesBuf []int
 	onNewStream func(stream *Stream)
 }
 
@@ -362,14 +363,15 @@ func (s *Session) streamClosed(sid uint32) error {
 
 func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
 	dataLen := len(data)
+	frameLen := dataLen + headerOverHeadSize
 
-	buffer := buf.NewSize(dataLen + headerOverHeadSize)
-	buffer.WriteByte(cmdPSH)
-	binary.BigEndian.PutUint32(buffer.Extend(4), sid)
-	binary.BigEndian.PutUint16(buffer.Extend(2), uint16(dataLen))
-	buffer.Write(data)
-	_, err := s.writeConn(buffer.Bytes())
-	buffer.Release()
+	frame := buf.Get(frameLen)
+	frame[0] = cmdPSH
+	binary.BigEndian.PutUint32(frame[1:5], sid)
+	binary.BigEndian.PutUint16(frame[5:7], uint16(dataLen))
+	copy(frame[headerOverHeadSize:], data)
+	_, err := s.writeConn(frame)
+	buf.Put(frame)
 	if err != nil {
 		return 0, err
 	}
@@ -424,7 +426,8 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 		paddingF := s.padding.Load()
 		if pkt < paddingF.Stop {
 			payloadLen := len(b)
-			pktSizes := paddingF.GenerateRecordPayloadSizes(pkt)
+			s.pktSizesBuf = paddingF.AppendRecordPayloadSizes(pkt, s.pktSizesBuf[:0])
+			pktSizes := s.pktSizesBuf
 			// Reuse per-session buffer for padding assembly (safe: called under connLock)
 			overhead := len(pktSizes) * (headerOverHeadSize + 1024)
 			needed := payloadLen + overhead
@@ -477,6 +480,7 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 		}
 		s.sendPadding = false
 		s.paddingBuf = nil
+		s.pktSizesBuf = nil
 	}
 	return s.conn.Write(b)
 }
