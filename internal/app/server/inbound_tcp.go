@@ -61,13 +61,13 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		return
 	}
 	passwordHexString := hex.EncodeToString(passwordBytes)
-	if !s.userService.Auth(passwordHexString) {
+	userId, ok := s.userService.AuthAndGetUserId(passwordHexString)
+	if !ok {
 		logrus.Debug("authentication failed")
 		b.Resize(0, n)
 		return
-	} else {
-		logrus.Debugln("authentication success")
 	}
+	logrus.Debugln("authentication success")
 
 	paddingLenBytes, err := b.ReadBytes(paddingLenFieldSz)
 	if err != nil {
@@ -84,12 +84,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 			return
 		}
 	}
-	userId, ok := s.userService.GetUserId(passwordBytes)
-	if !ok {
-		logrus.Debug("failed to get user ID")
-		return
-	}
-	logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
+	logrus.Debugln("user ID:", userId, "password:", passwordHexString)
 	trafficItem := s.userService.GetTrafficItem(userId)
 	// Count protocol header bytes consumed from buffer (not seen by CountedConn)
 	trafficItem.Up.Add(uint64(passwordLen + paddingLenFieldSz + paddingLen))
