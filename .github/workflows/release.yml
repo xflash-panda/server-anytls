@@ -7,14 +7,30 @@ on:
       - "v*"
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+
   build:
+    needs: create-release
+    if: always()
     strategy:
       matrix:
-        # Include amd64 on all platforms.
         goos: [linux]
-        goarch: [amd64,  arm64]
+        goarch: [amd64, arm64]
       fail-fast: false
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
@@ -27,7 +43,7 @@ jobs:
         run: |
           export _NAME=$(jq ".[\"$GOOS-$GOARCH$GOARM$GOMIPS\"].friendlyName" -r < .github/build/friendly-filenames.json)
           echo "GOOS: $GOOS, GOARCH: $GOARCH, GOARM: $GOARM, GOMIPS: $GOMIPS, RELEASE_NAME: $_NAME"
-          echo "::set-output name=ASSET_NAME::$_NAME"
+          echo "ASSET_NAME=$_NAME" >> "$GITHUB_OUTPUT"
           echo "ASSET_NAME=$_NAME" >> $GITHUB_ENV
 
       - name: Set up Go
@@ -76,10 +92,8 @@ jobs:
           path: |
             ./server-anytls-${{ steps.get_filename.outputs.ASSET_NAME }}/*
       - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v')
         with:
-          repo_token: ${{secrets.GITHUB_TOKEN}}
-          file: ./server-anytls-${{ steps.get_filename.outputs.ASSET_NAME }}.zip*
-          tag: ${{ github.ref }}
-          file_glob: true
+          tag_name: ${{ github.ref_name }}
+          files: ./server-anytls-${{ steps.get_filename.outputs.ASSET_NAME }}.zip*
