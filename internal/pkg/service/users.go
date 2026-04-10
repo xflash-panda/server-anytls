@@ -171,20 +171,21 @@ func (s *UsersService) FetchUsersTask() error {
 	return nil
 }
 
-func (s *UsersService) toUserTraffics() []*api.UserTraffic {
-	return s.trafficManager.toUserTraffics()
+func (s *UsersService) drainUserTraffics() []*api.UserTraffic {
+	return s.trafficManager.drainUserTraffics()
 }
 
 func (s *UsersService) ReportTrafficsTask() error {
-	userTraffics := s.toUserTraffics()
+	userTraffics := s.drainUserTraffics()
 	log.Infof("%d user traffic needs to be reported", len(userTraffics))
 	if len(userTraffics) > 0 {
 		err := s.client.Submit(s.ctx, s.config.RegisterID, api.AnyTLS, userTraffics)
 		if err != nil {
+			// Submit failed — restore swapped values so they are not lost
+			s.trafficManager.restore(userTraffics)
 			log.Errorln("report traffics task error:", err)
 			return nil
 		}
-		s.trafficManager.clear()
 	}
 	return nil
 }
@@ -280,7 +281,7 @@ type TrafficManager struct {
 	store sync.Map
 }
 
-func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
+func (tm *TrafficManager) drainUserTraffics() []*api.UserTraffic {
 	userTraffics := make([]*api.UserTraffic, 0)
 	tm.store.Range(func(key, value any) bool {
 		userId, ok := key.(int)
@@ -288,9 +289,9 @@ func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
 			return false
 		}
 		trafficItem := value.(*TrafficItem)
-		up := trafficItem.Up.Load()
-		down := trafficItem.Down.Load()
-		count := trafficItem.Count.Load()
+		up := trafficItem.Up.Swap(0)
+		down := trafficItem.Down.Swap(0)
+		count := trafficItem.Count.Swap(0)
 		if up > 0 || down > 0 || count > 0 {
 			userTraffics = append(userTraffics, &api.UserTraffic{
 				UID:      userId,
@@ -312,11 +313,13 @@ func (tm *TrafficManager) loadOrStore(userId int) *TrafficItem {
 	return item.(*TrafficItem)
 }
 
-func (tm *TrafficManager) clear() {
-	tm.store.Range(func(key interface{}, value interface{}) bool {
-		value.(*TrafficItem).delete()
-		return true
-	})
+func (tm *TrafficManager) restore(traffics []*api.UserTraffic) {
+	for _, t := range traffics {
+		item := tm.loadOrStore(t.UID)
+		item.Up.Add(t.Upload)
+		item.Down.Add(t.Download)
+		item.Count.Add(t.Count)
+	}
 }
 
 func newTrafficManager() *TrafficManager {
@@ -337,12 +340,6 @@ type TrafficItem struct {
 	Up    atomic.Uint64
 	Down  atomic.Uint64
 	Count atomic.Uint64
-}
-
-func (t *TrafficItem) delete() {
-	t.Up.Store(0)
-	t.Down.Store(0)
-	t.Count.Store(0)
 }
 
 func newTrafficItem() *TrafficItem {

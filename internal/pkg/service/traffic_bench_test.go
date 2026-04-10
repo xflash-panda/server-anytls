@@ -53,26 +53,6 @@ func TestTrafficItemConcurrentAddIntegrity(t *testing.T) {
 	}
 }
 
-// TestTrafficItemResetClearsAll verifies that reset/delete zeroes all counters.
-func TestTrafficItemResetClearsAll(t *testing.T) {
-	item := newTrafficItem()
-	item.Up.Add(100)
-	item.Down.Add(200)
-	item.Count.Add(300)
-
-	item.delete()
-
-	if item.Up.Load() != 0 {
-		t.Fatalf("Up should be 0 after reset, got %d", item.Up.Load())
-	}
-	if item.Down.Load() != 0 {
-		t.Fatalf("Down should be 0 after reset, got %d", item.Down.Load())
-	}
-	if item.Count.Load() != 0 {
-		t.Fatalf("Count should be 0 after reset, got %d", item.Count.Load())
-	}
-}
-
 // TestTrafficManagerLoadOrStoreConcurrent verifies that concurrent loadOrStore
 // calls for the same userId always return the same TrafficItem.
 func TestTrafficManagerLoadOrStoreConcurrent(t *testing.T) {
@@ -100,9 +80,9 @@ func TestTrafficManagerLoadOrStoreConcurrent(t *testing.T) {
 	}
 }
 
-// TestTrafficManagerToUserTrafficsFiltersZero verifies that toUserTraffics
+// TestDrainUserTrafficsFiltersZero verifies that drainUserTraffics
 // excludes entries with all-zero counters.
-func TestTrafficManagerToUserTrafficsFiltersZero(t *testing.T) {
+func TestDrainUserTrafficsFiltersZero(t *testing.T) {
 	tm := newTrafficManager()
 
 	// User with traffic
@@ -112,7 +92,7 @@ func TestTrafficManagerToUserTrafficsFiltersZero(t *testing.T) {
 	// User with zero traffic
 	tm.loadOrStore(2)
 
-	traffics := tm.toUserTraffics()
+	traffics := tm.drainUserTraffics()
 	if len(traffics) != 1 {
 		t.Fatalf("expected 1 user traffic, got %d", len(traffics))
 	}
@@ -124,8 +104,9 @@ func TestTrafficManagerToUserTrafficsFiltersZero(t *testing.T) {
 	}
 }
 
-// TestTrafficManagerClearResetsAll verifies that clear resets all counters.
-func TestTrafficManagerClearResetsAll(t *testing.T) {
+// TestDrainUserTrafficsResetsCounters verifies that drainUserTraffics
+// atomically resets all counters after reading.
+func TestDrainUserTrafficsResetsCounters(t *testing.T) {
 	tm := newTrafficManager()
 
 	item := tm.loadOrStore(1)
@@ -133,10 +114,10 @@ func TestTrafficManagerClearResetsAll(t *testing.T) {
 	item.Down.Add(200)
 	item.Count.Add(300)
 
-	tm.clear()
+	tm.drainUserTraffics()
 
 	if item.Up.Load() != 0 || item.Down.Load() != 0 || item.Count.Load() != 0 {
-		t.Fatal("clear did not reset counters")
+		t.Fatal("drainUserTraffics did not reset counters")
 	}
 }
 
