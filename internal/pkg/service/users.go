@@ -8,6 +8,7 @@ import (
 	"io"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	api "github.com/xflash-panda/server-client/pkg"
@@ -140,20 +141,6 @@ func (s *UsersService) UnregisterConnection(userId int, conn io.Closer) {
 	s.connectionManager.Remove(userId, conn)
 }
 
-func (s *UsersService) UpdateTraffic(userId int, up, down, count uint64) {
-	if trafficItem := s.GetTrafficItem(userId); trafficItem != nil {
-		if up > 0 {
-			trafficItem.Up.Add(up)
-		}
-		if down > 0 {
-			trafficItem.Down.Add(down)
-		}
-		if count > 0 {
-			trafficItem.Count.Add(count)
-		}
-	}
-}
-
 func (s *UsersService) FetchUsersTask() error {
 	s.updateMutex.Lock()
 	defer s.updateMutex.Unlock()
@@ -237,13 +224,7 @@ func (s *UsersService) compareUserList(newUsers *[]api.User) (deleted, added []a
 }
 
 func (s *UsersService) GetTrafficItem(userId int) *TrafficItem {
-	item := s.trafficManager.load(userId)
-	if item == nil {
-		newItem := newTrafficItem()
-		s.trafficManager.set(userId, newItem)
-		return newItem
-	}
-	return item
+	return s.trafficManager.loadOrStore(userId)
 }
 
 type UserManager struct {
@@ -307,12 +288,15 @@ func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
 			return false
 		}
 		trafficItem := value.(*TrafficItem)
-		if trafficItem.Up.Value() > 0 || trafficItem.Down.Value() > 0 || trafficItem.Count.Value() > 0 {
+		up := trafficItem.Up.Load()
+		down := trafficItem.Down.Load()
+		count := trafficItem.Count.Load()
+		if up > 0 || down > 0 || count > 0 {
 			userTraffics = append(userTraffics, &api.UserTraffic{
 				UID:      userId,
-				Upload:   trafficItem.Up.Value(),
-				Download: trafficItem.Down.Value(),
-				Count:    trafficItem.Count.Value(),
+				Upload:   up,
+				Download: down,
+				Count:    count,
 			})
 		}
 		return true
@@ -320,16 +304,12 @@ func (tm *TrafficManager) toUserTraffics() []*api.UserTraffic {
 	return userTraffics
 }
 
-func (tm *TrafficManager) load(userId int) *TrafficItem {
-	if item, ok := tm.store.Load(userId); !ok {
-		return nil
-	} else {
+func (tm *TrafficManager) loadOrStore(userId int) *TrafficItem {
+	if item, ok := tm.store.Load(userId); ok {
 		return item.(*TrafficItem)
 	}
-}
-
-func (tm *TrafficManager) set(userId int, item *TrafficItem) {
-	tm.store.Store(userId, item)
+	item, _ := tm.store.LoadOrStore(userId, newTrafficItem())
+	return item.(*TrafficItem)
 }
 
 func (tm *TrafficManager) clear() {
@@ -343,20 +323,30 @@ func newTrafficManager() *TrafficManager {
 	return &TrafficManager{store: sync.Map{}}
 }
 
+func NewExportedTrafficManager() *TrafficManager {
+	return newTrafficManager()
+}
+
+func NewUsersServiceWithTrafficManager(tm *TrafficManager) *UsersService {
+	return &UsersService{
+		trafficManager: tm,
+	}
+}
+
 type TrafficItem struct {
-	Up    *Counter
-	Down  *Counter
-	Count *Counter
+	Up    atomic.Uint64
+	Down  atomic.Uint64
+	Count atomic.Uint64
 }
 
 func (t *TrafficItem) delete() {
-	t.Count.Reset()
-	t.Down.Reset()
-	t.Up.Reset()
+	t.Up.Store(0)
+	t.Down.Store(0)
+	t.Count.Store(0)
 }
 
 func newTrafficItem() *TrafficItem {
-	return &TrafficItem{NewCounter(0), NewCounter(0), NewCounter(0)}
+	return &TrafficItem{}
 }
 
 // ConnectionManager manages user to connection mapping

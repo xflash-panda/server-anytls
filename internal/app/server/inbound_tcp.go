@@ -19,22 +19,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// contextKey 用于在 Context 中存储 userService
-type contextKey struct{}
-
-// WithUserService 将 userService 注入到 Context 中
-func WithUserService(ctx context.Context, userService *service.UsersService) context.Context {
-	return context.WithValue(ctx, contextKey{}, userService)
-}
-
-// GetUserService 从 Context 中获取 userService
-func GetUserService(ctx context.Context) *service.UsersService {
-	if userService, ok := ctx.Value(contextKey{}).(*service.UsersService); ok {
-		return userService
-	}
-	return nil
-}
-
 // serverKey 用于在 Context 中存储 Server 实例
 type serverKey struct{}
 
@@ -101,12 +85,10 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		return
 	}
 	logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
-	ctx = WithUserService(ctx, s.userService)
+	trafficItem := s.userService.GetTrafficItem(userId)
 	countedConn := &CountedConn{
-		Conn:              c,
-		userId:            userId,
-		ctx:               ctx,
-		passwordHexString: passwordHexString,
+		Conn:        c,
+		trafficItem: trafficItem,
 	}
 	sess := session.NewServerSession(countedConn, func(stream *session.Stream) {
 		logrus.Debugln("stream created")
@@ -121,7 +103,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		defer func() { _ = stream.Close() }()
 
 		// 更新流量请求次数
-		s.userService.UpdateTraffic(userId, 0, 0, 1)
+		trafficItem.Count.Add(1)
 
 		destination, err := M.SocksaddrSerializer.ReadAddrPort(stream)
 		if err != nil {
@@ -150,36 +132,29 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		s.userService.UnregisterConnection(userId, sess)
 	})
 
-	s.userService.UpdateTraffic(userId, uint64(n), 0, 0)
+	trafficItem.Up.Add(uint64(n))
 	sess.Run()
 }
 
-// CountedConn 包装原始连接以统计流量
+// CountedConn wraps a net.Conn with a cached TrafficItem for zero-lookup
+// traffic accounting on every Read/Write.
 type CountedConn struct {
 	net.Conn
-	userId            int
-	ctx               context.Context
-	passwordHexString string
+	trafficItem *service.TrafficItem
 }
 
-// Read 实现了 net.Conn 接口，统计下行流量
 func (c *CountedConn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
 	if n > 0 {
-		if userService := GetUserService(c.ctx); userService != nil {
-			userService.UpdateTraffic(c.userId, uint64(n), 0, 0)
-		}
+		c.trafficItem.Up.Add(uint64(n))
 	}
 	return n, err
 }
 
-// Write 实现了 net.Conn 接口，统计上行流量
 func (c *CountedConn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
 	if n > 0 {
-		if userService := GetUserService(c.ctx); userService != nil {
-			userService.UpdateTraffic(c.userId, 0, uint64(n), 0)
-		}
+		c.trafficItem.Down.Add(uint64(n))
 	}
 	return n, err
 }
