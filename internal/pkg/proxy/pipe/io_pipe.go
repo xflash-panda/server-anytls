@@ -38,9 +38,11 @@ type pipe struct {
 	once sync.Once
 	done chan struct{}
 
-	// notify is a signal channel: closed when data is available or space freed.
-	// After consuming the signal, it must be replaced with a fresh channel.
-	notify chan struct{}
+	// Separate buffered (size 1) signal channels eliminate the old
+	// close+recreate pattern (1 alloc per signal) while avoiding
+	// cross-wakeup deadlocks.
+	dataReady  chan struct{} // wakes reader: data was written
+	spaceReady chan struct{} // wakes writer: space was freed
 
 	rerr onceError
 	werr onceError
@@ -51,20 +53,40 @@ type pipe struct {
 	maxBuf int
 }
 
-// signalLocked swaps and closes the notify channel while the caller holds p.mu.
-// The close is performed after releasing the lock to avoid waking waiters
-// that immediately contend on p.mu.
-func (p *pipe) signalLocked() {
-	ch := p.notify
-	p.notify = make(chan struct{})
+// wakeReaderLocked signals the reader that data is available.
+// Caller must hold p.mu; the lock is released before sending.
+func (p *pipe) wakeReaderLocked() {
 	p.mu.Unlock()
-	close(ch)
+	select {
+	case p.dataReady <- struct{}{}:
+	default:
+	}
 }
 
-// signal wakes any goroutine waiting on p.notify (acquires p.mu).
-func (p *pipe) signal() {
-	p.mu.Lock()
-	p.signalLocked()
+// wakeWriterLocked signals the writer that buffer space is available.
+// Caller must hold p.mu; the lock is released before sending.
+func (p *pipe) wakeWriterLocked() {
+	p.mu.Unlock()
+	select {
+	case p.spaceReady <- struct{}{}:
+	default:
+	}
+}
+
+// wakeReader signals the reader without holding the lock.
+func (p *pipe) wakeReader() {
+	select {
+	case p.dataReady <- struct{}{}:
+	default:
+	}
+}
+
+// wakeWriter signals the writer without holding the lock.
+func (p *pipe) wakeWriter() {
+	select {
+	case p.spaceReady <- struct{}{}:
+	default:
+	}
 }
 
 // bufLen returns the amount of unread data in the buffer. Caller must hold p.mu.
@@ -100,18 +122,17 @@ func (p *pipe) read(b []byte) (n int, err error) {
 		p.mu.Lock()
 		if p.bufLen() > 0 {
 			n = p.consumeLocked(b)
-			p.signalLocked() // unlocks p.mu, wakes writer waiting for space
+			p.wakeWriterLocked() // unlocks p.mu, wakes writer waiting for space
 			return n, nil
 		}
 		if isClosedChan(p.done) {
 			p.mu.Unlock()
 			return 0, p.readCloseError()
 		}
-		ch := p.notify
 		p.mu.Unlock()
 
 		select {
-		case <-ch:
+		case <-p.dataReady:
 		case <-p.done:
 			// Drain remaining buffer
 			p.mu.Lock()
@@ -134,7 +155,7 @@ func (p *pipe) closeRead(err error) error {
 	}
 	p.rerr.Store(err)
 	p.once.Do(func() { close(p.done) })
-	p.signal()
+	p.wakeWriter()
 	return nil
 }
 
@@ -155,18 +176,17 @@ func (p *pipe) write(b []byte) (n int, err error) {
 			p.buf = append(p.buf, b[:toWrite]...)
 			b = b[toWrite:]
 			n += toWrite
-			p.signalLocked() // unlocks p.mu, wakes reader
+			p.wakeReaderLocked() // unlocks p.mu, wakes reader
 			continue
 		}
 		if isClosedChan(p.done) {
 			p.mu.Unlock()
 			return n, p.writeCloseError()
 		}
-		ch := p.notify
 		p.mu.Unlock()
 
 		select {
-		case <-ch:
+		case <-p.spaceReady:
 		case <-p.done:
 			return n, p.writeCloseError()
 		case <-p.writeDeadline.Wait():
@@ -182,7 +202,7 @@ func (p *pipe) closeWrite(err error) error {
 	}
 	p.werr.Store(err)
 	p.once.Do(func() { close(p.done) })
-	p.signal()
+	p.wakeReader()
 	return nil
 }
 
@@ -233,7 +253,8 @@ func (w *PipeWriter) CloseWithError(err error) error {
 func Pipe() (*PipeReader, *PipeWriter) {
 	p := &pipe{
 		done:          make(chan struct{}),
-		notify:        make(chan struct{}),
+		dataReady:     make(chan struct{}, 1),
+		spaceReady:    make(chan struct{}, 1),
 		readDeadline:  MakePipeDeadline(),
 		writeDeadline: MakePipeDeadline(),
 		maxBuf:        defaultBufSize,
