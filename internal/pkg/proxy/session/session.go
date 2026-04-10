@@ -380,23 +380,31 @@ func (s *Session) writeControlFrame(frame frame) (int, error) {
 	binary.BigEndian.PutUint16(buffer.Extend(2), uint16(dataLen))
 	buffer.Write(frame.data)
 
-	s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
-
-	_, err := s.writeConn(buffer.Bytes())
+	_, err := s.writeConnWithDeadline(buffer.Bytes(), time.Second*5)
 	buffer.Release()
 	if err != nil {
 		s.Close()
 		return 0, err
 	}
 
-	s.conn.SetWriteDeadline(time.Time{})
-
 	return dataLen, nil
+}
+
+func (s *Session) writeConnWithDeadline(b []byte, deadline time.Duration) (n int, err error) {
+	s.connLock.Lock()
+	defer s.connLock.Unlock()
+	s.conn.SetWriteDeadline(time.Now().Add(deadline))
+	defer s.conn.SetWriteDeadline(time.Time{})
+	return s.writeConnLocked(b)
 }
 
 func (s *Session) writeConn(b []byte) (n int, err error) {
 	s.connLock.Lock()
 	defer s.connLock.Unlock()
+	return s.writeConnLocked(b)
+}
+
+func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 	if s.buffering {
 		s.buffer = slices.Concat(s.buffer, b)
 		return len(b), nil
