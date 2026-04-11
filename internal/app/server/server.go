@@ -54,7 +54,10 @@ func validateConfig(nodeConfig api.NodeConfig, userService *service.UsersService
 		return errors.New("tlsConfig is nil")
 	}
 
-	anyTLSConfig := nodeConfig.(*api.AnyTLSConfig)
+	anyTLSConfig, ok := nodeConfig.(*api.AnyTLSConfig)
+	if !ok {
+		return fmt.Errorf("unexpected node config type: %T", nodeConfig)
+	}
 	if anyTLSConfig.ServerPort <= 0 || anyTLSConfig.ServerPort > 65535 {
 		return fmt.Errorf("invalid server port: %d", anyTLSConfig.ServerPort)
 	}
@@ -102,7 +105,11 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to get node config: %w", err)
 	}
-	s.anyTLSConfig = nodeConf.(*api.AnyTLSConfig)
+	anyTLSConf, ok := nodeConf.(*api.AnyTLSConfig)
+	if !ok {
+		return fmt.Errorf("unexpected node config type: %T", nodeConf)
+	}
+	s.anyTLSConfig = anyTLSConf
 	logrus.WithFields(logrus.Fields{
 		"node_id":   s.serviceConfig.NodeID,
 		"node_info": nodeConf.String(),
