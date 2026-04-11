@@ -99,22 +99,27 @@ func NewPaddingFactory(rawScheme []byte) *PaddingFactory {
 	return p
 }
 
-func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int) {
+func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) []int {
+	return p.AppendRecordPayloadSizes(pkt, nil)
+}
+
+// AppendRecordPayloadSizes appends padding sizes to buf and returns the
+// resulting slice. Callers can pass buf[:0] to reuse capacity without allocating.
+func (p *PaddingFactory) AppendRecordPayloadSizes(pkt uint32, buf []int) []int {
 	ranges, ok := p.parsedRanges[pkt]
 	if !ok {
-		return nil
+		return buf
 	}
-	pktSizes = make([]int, 0, len(ranges))
 	for _, r := range ranges {
 		if r.isCheck {
-			pktSizes = append(pktSizes, CheckMark)
+			buf = append(buf, CheckMark)
 			continue
 		}
 		if r.min == r.max {
-			pktSizes = append(pktSizes, int(r.min))
+			buf = append(buf, int(r.min))
 		} else {
-			pktSizes = append(pktSizes, int(rand.Int64N(r.max-r.min)+r.min))
+			buf = append(buf, int(rand.Int64N(r.max-r.min)+r.min))
 		}
 	}
-	return pktSizes
+	return buf
 }
