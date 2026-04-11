@@ -82,9 +82,13 @@ func (s *Session) Run() {
 		return
 	}
 
+	paddingF := s.padding.Load()
+	if paddingF == nil {
+		return
+	}
 	settings := util.StringMap{
 		"v":           "2",
-		"padding-md5": s.padding.Load().Md5,
+		"padding-md5": paddingF.Md5,
 	}
 
 	f := newFrame(cmdSettings, 0)
@@ -270,6 +274,10 @@ func (s *Session) recvLoop() error {
 						receivedSettingsFromClient = true
 						m := util.StringMapFromBytes(buffer)
 						paddingF := s.padding.Load()
+						if paddingF == nil {
+							buf.Put(buffer)
+							return nil
+						}
 						if m["padding-md5"] != paddingF.Md5 {
 							f := newFrame(cmdUpdatePaddingScheme, 0)
 							f.data = paddingF.RawScheme
@@ -433,6 +441,10 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 	if s.sendPadding {
 		pkt := s.pktCounter.Add(1)
 		paddingF := s.padding.Load()
+		if paddingF == nil {
+			s.sendPadding = false
+			return s.conn.Write(b)
+		}
 		if pkt < paddingF.Stop {
 			payloadLen := len(b)
 			s.pktSizesBuf = paddingF.AppendRecordPayloadSizes(pkt, s.pktSizesBuf[:0])

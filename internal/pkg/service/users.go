@@ -200,8 +200,10 @@ func (s *UsersService) compareUserList(newUsers *[]api.User) (deleted, added []a
 	oldMap := make(map[string]api.User)
 	newMap := make(map[string]api.User)
 
-	for _, user := range *s.userList {
-		oldMap[user.UUID] = user
+	if s.userList != nil {
+		for _, user := range *s.userList {
+			oldMap[user.UUID] = user
+		}
 	}
 	for _, user := range *newUsers {
 		newMap[user.UUID] = user
