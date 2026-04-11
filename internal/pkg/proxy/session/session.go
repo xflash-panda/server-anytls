@@ -369,31 +369,29 @@ func (s *Session) streamClosed(sid uint32) error {
 	return err
 }
 
+// maxFramePayload is the largest data payload per frame, chosen so that
+// chunkLen + headerOverHeadSize <= 65536, keeping frames within the pool.
+const maxFramePayload = 65536 - headerOverHeadSize
+
 func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
-	dataLen := len(data)
-	frameLen := dataLen + headerOverHeadSize
+	total := len(data)
+	for len(data) > 0 {
+		chunkLen := min(len(data), maxFramePayload)
+		frameLen := chunkLen + headerOverHeadSize
 
-	var frame []byte
-	var pooled bool
-	if frameLen <= 65536 {
-		frame = buf.Get(frameLen)
-		pooled = true
-	} else {
-		frame = make([]byte, frameLen)
-	}
-	frame[0] = cmdPSH
-	binary.BigEndian.PutUint32(frame[1:5], sid)
-	binary.BigEndian.PutUint16(frame[5:7], uint16(dataLen))
-	copy(frame[headerOverHeadSize:], data)
-	_, err := s.writeConn(frame)
-	if pooled {
+		frame := buf.Get(frameLen)
+		frame[0] = cmdPSH
+		binary.BigEndian.PutUint32(frame[1:5], sid)
+		binary.BigEndian.PutUint16(frame[5:7], uint16(chunkLen))
+		copy(frame[headerOverHeadSize:], data[:chunkLen])
+		_, err := s.writeConn(frame)
 		buf.Put(frame)
+		if err != nil {
+			return 0, err
+		}
+		data = data[chunkLen:]
 	}
-	if err != nil {
-		return 0, err
-	}
-
-	return dataLen, nil
+	return total, nil
 }
 
 func (s *Session) writeControlFrame(frame frame) (int, error) {

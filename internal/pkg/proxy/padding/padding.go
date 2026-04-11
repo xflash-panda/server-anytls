@@ -12,6 +12,7 @@ import (
 )
 
 const CheckMark = -1
+const maxPaddingSize int64 = 65535
 
 var defaultPaddingScheme = []byte(`stop=8
 0=30-30
@@ -91,6 +92,8 @@ func NewPaddingFactory(rawScheme []byte) *PaddingFactory {
 				if _min <= 0 || _max <= 0 {
 					continue
 				}
+				_min = min(_min, maxPaddingSize)
+				_max = min(_max, maxPaddingSize)
 				ranges = append(ranges, paddingRange{min: _min, max: _max})
 			}
 		}

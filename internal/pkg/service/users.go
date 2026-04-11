@@ -205,8 +205,10 @@ func (s *UsersService) compareUserList(newUsers *[]api.User) (deleted, added []a
 			oldMap[user.UUID] = user
 		}
 	}
-	for _, user := range *newUsers {
-		newMap[user.UUID] = user
+	if newUsers != nil {
+		for _, user := range *newUsers {
+			newMap[user.UUID] = user
+		}
 	}
 
 	for uuid, user := range oldMap {
@@ -281,9 +283,12 @@ func (tm *TrafficManager) drainUserTraffics() []*api.UserTraffic {
 	tm.store.Range(func(key, value any) bool {
 		userId, ok := key.(int)
 		if !ok {
-			return false
+			return true
 		}
-		trafficItem := value.(*TrafficItem)
+		trafficItem, ok := value.(*TrafficItem)
+		if !ok {
+			return true
+		}
 		up := trafficItem.Up.Swap(0)
 		down := trafficItem.Down.Swap(0)
 		count := trafficItem.Count.Swap(0)
@@ -301,11 +306,13 @@ func (tm *TrafficManager) drainUserTraffics() []*api.UserTraffic {
 }
 
 func (tm *TrafficManager) loadOrStore(userId int) *TrafficItem {
-	if item, ok := tm.store.Load(userId); ok {
-		return item.(*TrafficItem)
-	}
 	item, _ := tm.store.LoadOrStore(userId, newTrafficItem())
-	return item.(*TrafficItem)
+	if ti, ok := item.(*TrafficItem); ok {
+		return ti
+	}
+	ti := newTrafficItem()
+	tm.store.Store(userId, ti)
+	return ti
 }
 
 func (tm *TrafficManager) restore(traffics []*api.UserTraffic) {
