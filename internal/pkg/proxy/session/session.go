@@ -365,13 +365,22 @@ func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
 	dataLen := len(data)
 	frameLen := dataLen + headerOverHeadSize
 
-	frame := buf.Get(frameLen)
+	var frame []byte
+	var pooled bool
+	if frameLen <= 65536 {
+		frame = buf.Get(frameLen)
+		pooled = true
+	} else {
+		frame = make([]byte, frameLen)
+	}
 	frame[0] = cmdPSH
 	binary.BigEndian.PutUint32(frame[1:5], sid)
 	binary.BigEndian.PutUint16(frame[5:7], uint16(dataLen))
 	copy(frame[headerOverHeadSize:], data)
 	_, err := s.writeConn(frame)
-	buf.Put(frame)
+	if pooled {
+		buf.Put(frame)
+	}
 	if err != nil {
 		return 0, err
 	}
