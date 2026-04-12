@@ -23,11 +23,17 @@ var defaultPaddingScheme = []byte(`stop=8
 6=500-1000
 7=500-1000`)
 
+type paddingRange struct {
+	isCheck bool
+	min     int64
+	max     int64
+}
+
 type PaddingFactory struct {
-	scheme    util.StringMap
-	RawScheme []byte
-	Stop      uint32
-	Md5       string
+	parsedRanges map[uint32][]paddingRange
+	RawScheme    []byte
+	Stop         uint32
+	Md5          string
 }
 
 var DefaultPaddingFactory scommon.TypedValue[*PaddingFactory]
@@ -58,15 +64,19 @@ func NewPaddingFactory(rawScheme []byte) *PaddingFactory {
 	} else {
 		return nil
 	}
-	p.scheme = scheme
-	return p
-}
-
-func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int) {
-	if s, ok := p.scheme[strconv.Itoa(int(pkt))]; ok {
-		sRanges := strings.Split(s, ",")
-		pktSizes = make([]int, 0, len(sRanges))
+	p.parsedRanges = make(map[uint32][]paddingRange)
+	for key, val := range scheme {
+		pkt, err := strconv.Atoi(key)
+		if err != nil {
+			continue
+		}
+		sRanges := strings.Split(val, ",")
+		ranges := make([]paddingRange, 0, len(sRanges))
 		for _, sRange := range sRanges {
+			if sRange == "c" {
+				ranges = append(ranges, paddingRange{isCheck: true})
+				continue
+			}
 			sRangeMinMax := strings.Split(sRange, "-")
 			if len(sRangeMinMax) == 2 {
 				_min, err := strconv.ParseInt(sRangeMinMax[0], 10, 64)
@@ -81,14 +91,29 @@ func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int)
 				if _min <= 0 || _max <= 0 {
 					continue
 				}
-				if _min == _max {
-					pktSizes = append(pktSizes, int(_min))
-				} else {
-					pktSizes = append(pktSizes, int(rand.Int64N(_max-_min)+_min))
-				}
-			} else if sRange == "c" {
-				pktSizes = append(pktSizes, CheckMark)
+				ranges = append(ranges, paddingRange{min: _min, max: _max})
 			}
+		}
+		p.parsedRanges[uint32(pkt)] = ranges
+	}
+	return p
+}
+
+func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int) {
+	ranges, ok := p.parsedRanges[pkt]
+	if !ok {
+		return nil
+	}
+	pktSizes = make([]int, 0, len(ranges))
+	for _, r := range ranges {
+		if r.isCheck {
+			pktSizes = append(pktSizes, CheckMark)
+			continue
+		}
+		if r.min == r.max {
+			pktSizes = append(pktSizes, int(r.min))
+		} else {
+			pktSizes = append(pktSizes, int(rand.Int64N(r.max-r.min)+r.min))
 		}
 	}
 	return pktSizes

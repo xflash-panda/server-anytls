@@ -132,12 +132,8 @@ func (s *UsersService) Close() error {
 	return nil
 }
 
-func (s *UsersService) Auth(hexString string) bool {
-	return s.userManager.auth(hexString)
-}
-
-func (s *UsersService) GetUserId(uuidBytes []byte) (int, bool) {
-	return s.userManager.GetUserId(uuidBytes)
+func (s *UsersService) AuthAndGetUserId(hexString string) (int, bool) {
+	return s.userManager.authAndGetUserId(hexString)
 }
 
 // RegisterConnection registers a connection for a user
@@ -267,15 +263,6 @@ func newUserManager() *UserManager {
 	return &UserManager{store: sync.Map{}}
 }
 
-func (um *UserManager) GetUserId(uuidBytes []byte) (int, bool) {
-	if data, ok := um.store.Load(hex.EncodeToString(uuidBytes)); ok {
-		if user, ok := data.(*api.User); ok {
-			return user.ID, true
-		}
-	}
-	return 0, false
-}
-
 func (um *UserManager) addUsers(users []api.User) {
 	for _, user := range users {
 		key := sha256.Sum256([]byte(user.UUID))
@@ -303,9 +290,13 @@ func (um *UserManager) countUsers() int {
 	return length
 }
 
-func (um *UserManager) auth(hexString string) bool {
-	_, ok := um.store.Load(hexString)
-	return ok
+func (um *UserManager) authAndGetUserId(hexString string) (int, bool) {
+	if data, ok := um.store.Load(hexString); ok {
+		if user, ok := data.(*api.User); ok {
+			return user.ID, true
+		}
+	}
+	return 0, false
 }
 
 type TrafficManager struct {
