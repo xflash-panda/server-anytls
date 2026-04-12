@@ -8,9 +8,9 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
+	"github.com/xflash-panda/server-anytls/internal/pkg/util"
 	api "github.com/xflash-panda/server-client/pkg"
 
 	log "github.com/sirupsen/logrus"
@@ -75,60 +75,24 @@ func (s *UsersService) Start() error {
 	if err := s.init(); err != nil {
 		return fmt.Errorf("failed to initialize users service: %w", err)
 	}
-
-	go func() {
+	util.StartRoutine(s.ctx, s.config.FetchUserInterval, func() {
 		if err := s.FetchUsersTask(); err != nil {
 			log.Errorln("fetch users task error:", err)
 		}
-		ticker := time.NewTicker(s.config.FetchUserInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := s.FetchUsersTask(); err != nil {
-					log.Errorln("fetch users task error:", err)
-				}
-			case <-s.ctx.Done():
-				return
-			}
-		}
-	}()
+	})
 
-	go func() {
+	util.StartRoutine(s.ctx, s.config.ReportTrafficInterval, func() {
 		if err := s.ReportTrafficsTask(); err != nil {
 			log.Errorln("report traffic task error:", err)
 		}
-		ticker := time.NewTicker(s.config.ReportTrafficInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := s.ReportTrafficsTask(); err != nil {
-					log.Errorln("report traffic task error:", err)
-				}
-			case <-s.ctx.Done():
-				return
-			}
-		}
-	}()
+	})
 
-	go func() {
+	util.StartRoutine(s.ctx, s.config.HeartBeatInterval, func() {
 		if err := s.HeartBeatTask(); err != nil {
 			log.Errorln("heartbeat task error:", err)
 		}
-		ticker := time.NewTicker(s.config.HeartBeatInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := s.HeartBeatTask(); err != nil {
-					log.Errorln("heartbeat task error:", err)
-				}
-			case <-s.ctx.Done():
-				return
-			}
-		}
-	}()
+	})
+
 	log.Infoln("Start fetch users task")
 	log.Infoln("Start report traffic task")
 	return nil
