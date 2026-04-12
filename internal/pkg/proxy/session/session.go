@@ -22,6 +22,11 @@ import (
 
 var clientDebugPaddingScheme = os.Getenv("CLIENT_DEBUG_PADDING_SCHEME") == "1"
 
+// zeroBuf is a pre-allocated zero-filled buffer used for waste padding,
+// avoiding per-write heap allocation of make([]byte, paddingLen).
+// Max padding length is uint16 (65535).
+var zeroBuf [65536]byte
+
 type Session struct {
 	conn        net.Conn
 	connLock    sync.Mutex
@@ -439,7 +444,7 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 						wasteHdr[0] = cmdWaste
 						binary.BigEndian.PutUint16(wasteHdr[5:7], uint16(paddingLen))
 						assembled = append(assembled, wasteHdr[:]...)
-						assembled = append(assembled, make([]byte, paddingLen)...)
+						assembled = append(assembled, zeroBuf[:paddingLen]...)
 					} else {
 						assembled = append(assembled, b...)
 					}
@@ -449,7 +454,7 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 					wasteHdr[0] = cmdWaste
 					binary.BigEndian.PutUint16(wasteHdr[5:7], uint16(l))
 					assembled = append(assembled, wasteHdr[:]...)
-					assembled = append(assembled, make([]byte, l)...)
+					assembled = append(assembled, zeroBuf[:l]...)
 					b = nil
 				}
 			}

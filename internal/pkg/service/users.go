@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/xflash-panda/server-agent-proto/pkg"
@@ -147,20 +148,6 @@ func (s *UsersService) RegisterConnection(userId int, conn io.Closer) {
 // UnregisterConnection unregisters a connection for a user
 func (s *UsersService) UnregisterConnection(userId int, conn io.Closer) {
 	s.connectionManager.Remove(userId, conn)
-}
-
-func (s *UsersService) UpdateTraffic(userId int, up, down, count uint64) {
-	if trafficItem := s.GetTrafficItem(userId); trafficItem != nil {
-		if up > 0 {
-			trafficItem.Up.Add(up)
-		}
-		if down > 0 {
-			trafficItem.Down.Add(down)
-		}
-		if count > 0 {
-			trafficItem.Count.Add(count)
-		}
-	}
 }
 
 func (s *UsersService) FetchUsersTask() error {
@@ -363,20 +350,20 @@ func (tm *TrafficManager) toTraffics() ([]*api.UserTraffic, *api.TrafficStats) {
 			return false
 		}
 		trafficItem := value.(*TrafficItem)
-		if trafficItem.Up.Value() > 0 || trafficItem.Down.Value() > 0 || trafficItem.Count.Value() > 0 {
+		if trafficItem.Up.Load() > 0 || trafficItem.Down.Load() > 0 || trafficItem.Count.Load() > 0 {
 			userTraffics = append(userTraffics, &api.UserTraffic{
 				UID:      userId,
-				Upload:   trafficItem.Up.Value(),
-				Download: trafficItem.Down.Value(),
-				Count:    trafficItem.Count.Value(),
+				Upload:   trafficItem.Up.Load(),
+				Download: trafficItem.Down.Load(),
+				Count:    trafficItem.Count.Load(),
 			})
 		}
-		count := int(trafficItem.Count.Value())
+		count := int(trafficItem.Count.Load())
 		if count > 0 {
 			stats.Requests += count
 			stats.Count++
 			stats.UserIds = append(stats.UserIds, userId)
-			stats.UserRequests[userId] = int(trafficItem.Count.Value())
+			stats.UserRequests[userId] = int(trafficItem.Count.Load())
 		}
 		i++
 		return true
@@ -399,19 +386,19 @@ func NewUsersServiceWithTrafficManager(tm *TrafficManager) *UsersService {
 }
 
 type TrafficItem struct {
-	Up    *Counter
-	Down  *Counter
-	Count *Counter
+	Up    atomic.Uint64
+	Down  atomic.Uint64
+	Count atomic.Uint64
 }
 
 func (t *TrafficItem) delete() {
-	t.Count.Reset()
-	t.Down.Reset()
-	t.Up.Reset()
+	t.Up.Store(0)
+	t.Down.Store(0)
+	t.Count.Store(0)
 }
 
 func newTrafficItem() *TrafficItem {
-	return &TrafficItem{NewCounter(0), NewCounter(0), NewCounter(0)}
+	return &TrafficItem{}
 }
 
 // ConnectionManager manages user to connection mapping
