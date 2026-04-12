@@ -187,25 +187,31 @@ func (s *UsersService) FetchUsersTask() error {
 }
 
 func (s *UsersService) ReportTrafficsTask() error {
-	trafficsRawResult, statsRawResult := s.trafficManager.toTrafficsRawData()
-	if trafficsRawResult.Err != nil {
-		log.Errorln(trafficsRawResult.Err)
+	userTraffics := s.trafficManager.drainUserTraffics()
+	log.Infof("%d user traffic needs to be reported", len(userTraffics))
+	if len(userTraffics) == 0 {
 		return nil
 	}
-	if statsRawResult.Err != nil {
-		log.Errorln(statsRawResult.Err)
+	trafficsRawData, err := api.MarshalTraffics(userTraffics)
+	if err != nil {
+		s.trafficManager.restore(userTraffics)
+		log.Errorln("marshal traffics error:", err)
 		return nil
 	}
-	log.Infoln("reporting traffics...")
-	if len(statsRawResult.Data) > 0 || len(trafficsRawResult.Data) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
-		defer cancel()
-		_, err := s.client.Submit(ctx, &pb.SubmitRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID, RawData: trafficsRawResult.Data, RawStats: statsRawResult.Data})
-		if err != nil {
-			log.Errorln("report traffics error:", err)
-			return nil
-		}
-		s.trafficManager.clear()
+	statsRawData, err := api.MarshalTrafficStats(userTrafficsToStats(userTraffics))
+	if err != nil {
+		s.trafficManager.restore(userTraffics)
+		log.Errorln("marshal stats error:", err)
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+	_, err = s.client.Submit(ctx, &pb.SubmitRequest{NodeType: pb.NodeType_ANYTLS, RegisterId: s.registerID, RawData: trafficsRawData, RawStats: statsRawData})
+	if err != nil {
+		// Submit failed — restore swapped values so they are not lost
+		s.trafficManager.restore(userTraffics)
+		log.Errorln("report traffics error:", err)
+		return nil
 	}
 	return nil
 }
@@ -314,6 +320,30 @@ func (tm *TrafficManager) load(userId int) *TrafficItem {
 	}
 }
 
+func (tm *TrafficManager) drainUserTraffics() []*api.UserTraffic {
+	userTraffics := make([]*api.UserTraffic, 0)
+	tm.store.Range(func(key, value any) bool {
+		userId, ok := key.(int)
+		if !ok {
+			return false
+		}
+		trafficItem := value.(*TrafficItem)
+		up := trafficItem.Up.Swap(0)
+		down := trafficItem.Down.Swap(0)
+		count := trafficItem.Count.Swap(0)
+		if up > 0 || down > 0 || count > 0 {
+			userTraffics = append(userTraffics, &api.UserTraffic{
+				UID:      userId,
+				Upload:   up,
+				Download: down,
+				Count:    count,
+			})
+		}
+		return true
+	})
+	return userTraffics
+}
+
 func (tm *TrafficManager) loadOrStore(userId int) *TrafficItem {
 	if item, ok := tm.store.Load(userId); ok {
 		return item.(*TrafficItem)
@@ -322,53 +352,30 @@ func (tm *TrafficManager) loadOrStore(userId int) *TrafficItem {
 	return item.(*TrafficItem)
 }
 
-func (tm *TrafficManager) clear() {
-	tm.store.Range(func(key interface{}, value interface{}) bool {
-		value.(*TrafficItem).delete()
-		return true
-	})
+func (tm *TrafficManager) restore(traffics []*api.UserTraffic) {
+	for _, t := range traffics {
+		item := tm.loadOrStore(t.UID)
+		item.Up.Add(t.Upload)
+		item.Down.Add(t.Download)
+		item.Count.Add(t.Count)
+	}
 }
 
-func (tm *TrafficManager) toTrafficsRawData() (*RawResult, *RawResult) {
-	traffics, stats := tm.toTraffics()
-	trafficsRawResult := &RawResult{}
-	trafficsRawResult.Data, trafficsRawResult.Err = api.MarshalTraffics(traffics)
-	statsRawResult := &RawResult{}
-	statsRawResult.Data, statsRawResult.Err = api.MarshalTrafficStats(stats)
-	return trafficsRawResult, statsRawResult
-}
-
-func (tm *TrafficManager) toTraffics() ([]*api.UserTraffic, *api.TrafficStats) {
-	userTraffics := make([]*api.UserTraffic, 0)
-	i := 0
+// userTrafficsToStats converts drained user traffics to TrafficStats.
+func userTrafficsToStats(traffics []*api.UserTraffic) *api.TrafficStats {
 	var stats api.TrafficStats
-	stats.UserIds = make([]int, 0)
-	stats.UserRequests = make(map[int]int)
-	tm.store.Range(func(key, value any) bool {
-		userId, ok := key.(int)
-		if !ok {
-			return false
-		}
-		trafficItem := value.(*TrafficItem)
-		if trafficItem.Up.Load() > 0 || trafficItem.Down.Load() > 0 || trafficItem.Count.Load() > 0 {
-			userTraffics = append(userTraffics, &api.UserTraffic{
-				UID:      userId,
-				Upload:   trafficItem.Up.Load(),
-				Download: trafficItem.Down.Load(),
-				Count:    trafficItem.Count.Load(),
-			})
-		}
-		count := int(trafficItem.Count.Load())
+	stats.UserIds = make([]int, 0, len(traffics))
+	stats.UserRequests = make(map[int]int, len(traffics))
+	for _, t := range traffics {
+		count := int(t.Count)
 		if count > 0 {
 			stats.Requests += count
 			stats.Count++
-			stats.UserIds = append(stats.UserIds, userId)
-			stats.UserRequests[userId] = int(trafficItem.Count.Load())
+			stats.UserIds = append(stats.UserIds, t.UID)
+			stats.UserRequests[t.UID] = count
 		}
-		i++
-		return true
-	})
-	return userTraffics, &stats
+	}
+	return &stats
 }
 
 func newTrafficManager() *TrafficManager {
@@ -389,12 +396,6 @@ type TrafficItem struct {
 	Up    atomic.Uint64
 	Down  atomic.Uint64
 	Count atomic.Uint64
-}
-
-func (t *TrafficItem) delete() {
-	t.Up.Store(0)
-	t.Down.Store(0)
-	t.Count.Store(0)
 }
 
 func newTrafficItem() *TrafficItem {

@@ -19,6 +19,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	passwordLen       = 32
+	paddingLenFieldSz = 2
+)
+
 // serverKey 用于在 Context 中存储 Server 实例
 type serverKey struct{}
 
@@ -46,7 +51,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		return
 	}
 	c = bufio.NewCachedConn(c, b)
-	passwordBytes, err := b.ReadBytes(32)
+	passwordBytes, err := b.ReadBytes(passwordLen)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"remote_addr": c.RemoteAddr().String(),
@@ -64,7 +69,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		logrus.Debugln("authentication success")
 	}
 
-	paddingLenBytes, err := b.ReadBytes(2)
+	paddingLenBytes, err := b.ReadBytes(paddingLenFieldSz)
 	if err != nil {
 		logrus.WithError(err).Debug("failed to read padding length")
 		b.Resize(0, n)
@@ -86,6 +91,8 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 	}
 	logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
 	trafficItem := s.userService.GetTrafficItem(userId)
+	// Count protocol header bytes consumed from buffer (not seen by CountedConn)
+	trafficItem.Up.Add(uint64(passwordLen + paddingLenFieldSz + paddingLen))
 	countedConn := &CountedConn{
 		Conn:        c,
 		trafficItem: trafficItem,
@@ -132,7 +139,6 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		s.userService.UnregisterConnection(userId, sess)
 	})
 
-	trafficItem.Up.Add(uint64(n))
 	sess.Run()
 }
 
