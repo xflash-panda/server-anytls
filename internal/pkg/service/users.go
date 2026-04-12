@@ -77,6 +77,9 @@ func (s *UsersService) Start() error {
 	}
 
 	go func() {
+		if err := s.FetchUsersTask(); err != nil {
+			log.Errorln("fetch users task error:", err)
+		}
 		ticker := time.NewTicker(s.config.FetchUserInterval)
 		defer ticker.Stop()
 		for {
@@ -92,6 +95,9 @@ func (s *UsersService) Start() error {
 	}()
 
 	go func() {
+		if err := s.ReportTrafficsTask(); err != nil {
+			log.Errorln("report traffic task error:", err)
+		}
 		ticker := time.NewTicker(s.config.ReportTrafficInterval)
 		defer ticker.Stop()
 		for {
@@ -107,6 +113,9 @@ func (s *UsersService) Start() error {
 	}()
 
 	go func() {
+		if err := s.HeartBeatTask(); err != nil {
+			log.Errorln("heartbeat task error:", err)
+		}
 		ticker := time.NewTicker(s.config.HeartBeatInterval)
 		defer ticker.Stop()
 		for {
