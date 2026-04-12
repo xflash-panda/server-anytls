@@ -87,6 +87,9 @@ func (s *UsersService) Start() error {
 		}
 	})
 
+	if err := s.HeartBeatTask(); err != nil {
+		log.Errorln("heartbeat task error:", err)
+	}
 	util.StartRoutine(s.ctx, s.config.HeartBeatInterval, func() {
 		if err := s.HeartBeatTask(); err != nil {
 			log.Errorln("heartbeat task error:", err)
@@ -95,6 +98,7 @@ func (s *UsersService) Start() error {
 
 	log.Infoln("Start fetch users task")
 	log.Infoln("Start report traffic task")
+	log.Infoln("Start heartbeat task")
 	return nil
 }
 
