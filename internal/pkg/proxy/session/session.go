@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"runtime/debug"
-	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -405,69 +404,65 @@ func (s *Session) writeConn(b []byte) (n int, err error) {
 
 func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 	if s.buffering {
-		s.buffer = slices.Concat(s.buffer, b)
+		s.buffer = append(s.buffer, b...)
 		return len(b), nil
 	} else if len(s.buffer) > 0 {
-		b = slices.Concat(s.buffer, b)
+		s.buffer = append(s.buffer, b...)
+		b = s.buffer
 		s.buffer = nil
 	}
 	if s.sendPadding {
 		pkt := s.pktCounter.Add(1)
 		paddingF := s.padding.Load()
 		if pkt < paddingF.Stop {
+			payloadLen := len(b)
 			pktSizes := paddingF.GenerateRecordPayloadSizes(pkt)
+			// Estimate total size: payload + per-slot overhead (header + padding)
+			overhead := len(pktSizes) * (headerOverHeadSize + 1024)
+			assembled := make([]byte, 0, payloadLen+overhead)
 			for _, l := range pktSizes {
-				remainPayloadLen := len(b)
+				remaining := len(b)
 				if l == padding.CheckMark {
-					if remainPayloadLen == 0 {
+					if remaining == 0 {
 						break
-					} else {
-						continue
 					}
+					continue
 				}
-				if remainPayloadLen > l {
-					_, err = s.conn.Write(b[:l])
-					if err != nil {
-						return 0, err
-					}
-					n += l
+				if remaining > l {
+					assembled = append(assembled, b[:l]...)
 					b = b[l:]
-				} else if remainPayloadLen > 0 {
-					paddingLen := l - remainPayloadLen - headerOverHeadSize
+				} else if remaining > 0 {
+					paddingLen := l - remaining - headerOverHeadSize
 					if paddingLen > 0 {
-						padding := make([]byte, headerOverHeadSize+paddingLen)
-						padding[0] = cmdWaste
-						binary.BigEndian.PutUint32(padding[1:5], 0)
-						binary.BigEndian.PutUint16(padding[5:7], uint16(paddingLen))
-						b = slices.Concat(b, padding)
+						assembled = append(assembled, b...)
+						var wasteHdr [headerOverHeadSize]byte
+						wasteHdr[0] = cmdWaste
+						binary.BigEndian.PutUint16(wasteHdr[5:7], uint16(paddingLen))
+						assembled = append(assembled, wasteHdr[:]...)
+						assembled = append(assembled, make([]byte, paddingLen)...)
+					} else {
+						assembled = append(assembled, b...)
 					}
-					_, err = s.conn.Write(b)
-					if err != nil {
-						return 0, err
-					}
-					n += remainPayloadLen
 					b = nil
 				} else {
-					padding := make([]byte, headerOverHeadSize+l)
-					padding[0] = cmdWaste
-					binary.BigEndian.PutUint32(padding[1:5], 0)
-					binary.BigEndian.PutUint16(padding[5:7], uint16(l))
-					_, err = s.conn.Write(padding)
-					if err != nil {
-						return 0, err
-					}
+					var wasteHdr [headerOverHeadSize]byte
+					wasteHdr[0] = cmdWaste
+					binary.BigEndian.PutUint16(wasteHdr[5:7], uint16(l))
+					assembled = append(assembled, wasteHdr[:]...)
+					assembled = append(assembled, make([]byte, l)...)
 					b = nil
 				}
 			}
-			if len(b) == 0 {
-				return n, err
-			} else {
-				n2, err := s.conn.Write(b)
-				return n + n2, err
+			if len(b) > 0 {
+				assembled = append(assembled, b...)
 			}
-		} else {
-			s.sendPadding = false
+			_, err = s.conn.Write(assembled)
+			if err != nil {
+				return 0, err
+			}
+			return payloadLen, nil
 		}
+		s.sendPadding = false
 	}
 	return s.conn.Write(b)
 }

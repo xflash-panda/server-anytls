@@ -263,13 +263,7 @@ func (s *UsersService) compareUserList(newUsers *[]api.User) (deleted, added []a
 }
 
 func (s *UsersService) GetTrafficItem(userId int) *TrafficItem {
-	item := s.trafficManager.load(userId)
-	if item == nil {
-		newItem := newTrafficItem()
-		s.trafficManager.set(userId, newItem)
-		return newItem
-	}
-	return item
+	return s.trafficManager.loadOrStore(userId)
 }
 
 type UserManager struct {
@@ -333,8 +327,12 @@ func (tm *TrafficManager) load(userId int) *TrafficItem {
 	}
 }
 
-func (tm *TrafficManager) set(userId int, item *TrafficItem) {
-	tm.store.Store(userId, item)
+func (tm *TrafficManager) loadOrStore(userId int) *TrafficItem {
+	if item, ok := tm.store.Load(userId); ok {
+		return item.(*TrafficItem)
+	}
+	item, _ := tm.store.LoadOrStore(userId, newTrafficItem())
+	return item.(*TrafficItem)
 }
 
 func (tm *TrafficManager) clear() {
@@ -388,6 +386,16 @@ func (tm *TrafficManager) toTraffics() ([]*api.UserTraffic, *api.TrafficStats) {
 
 func newTrafficManager() *TrafficManager {
 	return &TrafficManager{store: sync.Map{}}
+}
+
+func NewExportedTrafficManager() *TrafficManager {
+	return newTrafficManager()
+}
+
+func NewUsersServiceWithTrafficManager(tm *TrafficManager) *UsersService {
+	return &UsersService{
+		trafficManager: tm,
+	}
 }
 
 type TrafficItem struct {

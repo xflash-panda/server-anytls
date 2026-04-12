@@ -19,22 +19,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// contextKey 用于在 Context 中存储 userService
-type contextKey struct{}
-
-// WithUserService 将 userService 注入到 Context 中
-func WithUserService(ctx context.Context, userService *service.UsersService) context.Context {
-	return context.WithValue(ctx, contextKey{}, userService)
-}
-
-// GetUserService 从 Context 中获取 userService
-func GetUserService(ctx context.Context) *service.UsersService {
-	if userService, ok := ctx.Value(contextKey{}).(*service.UsersService); ok {
-		return userService
-	}
-	return nil
-}
-
 // serverKey 用于在 Context 中存储 Server 实例
 type serverKey struct{}
 
@@ -101,11 +85,10 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 		return
 	}
 	logrus.Debugln("user ID:", userId, "password:", hex.EncodeToString(passwordBytes))
-	ctx = WithUserService(ctx, s.userService)
 	countedConn := &CountedConn{
 		Conn:              c,
 		userId:            userId,
-		ctx:               ctx,
+		userService:       s.userService,
 		passwordHexString: passwordHexString,
 	}
 	sess := session.NewServerSession(countedConn, func(stream *session.Stream) {
@@ -158,7 +141,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, s *Server) {
 type CountedConn struct {
 	net.Conn
 	userId            int
-	ctx               context.Context
+	userService       *service.UsersService
 	passwordHexString string
 }
 
@@ -166,9 +149,7 @@ type CountedConn struct {
 func (c *CountedConn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
 	if n > 0 {
-		if userService := GetUserService(c.ctx); userService != nil {
-			userService.UpdateTraffic(c.userId, uint64(n), 0, 0)
-		}
+		c.userService.UpdateTraffic(c.userId, uint64(n), 0, 0)
 	}
 	return n, err
 }
@@ -177,9 +158,7 @@ func (c *CountedConn) Read(b []byte) (n int, err error) {
 func (c *CountedConn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
 	if n > 0 {
-		if userService := GetUserService(c.ctx); userService != nil {
-			userService.UpdateTraffic(c.userId, 0, uint64(n), 0)
-		}
+		c.userService.UpdateTraffic(c.userId, 0, uint64(n), 0)
 	}
 	return n, err
 }
