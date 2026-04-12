@@ -2,9 +2,8 @@ package padding
 
 import (
 	"crypto/md5"
-	"crypto/rand"
 	"fmt"
-	"math/big"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 
@@ -66,6 +65,7 @@ func NewPaddingFactory(rawScheme []byte) *PaddingFactory {
 func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int) {
 	if s, ok := p.scheme[strconv.Itoa(int(pkt))]; ok {
 		sRanges := strings.Split(s, ",")
+		pktSizes = make([]int, 0, len(sRanges))
 		for _, sRange := range sRanges {
 			sRangeMinMax := strings.Split(sRange, "-")
 			if len(sRangeMinMax) == 2 {
@@ -84,8 +84,7 @@ func (p *PaddingFactory) GenerateRecordPayloadSizes(pkt uint32) (pktSizes []int)
 				if _min == _max {
 					pktSizes = append(pktSizes, int(_min))
 				} else {
-					i, _ := rand.Int(rand.Reader, big.NewInt(_max-_min))
-					pktSizes = append(pktSizes, int(i.Int64()+_min))
+					pktSizes = append(pktSizes, int(rand.Int64N(_max-_min)+_min))
 				}
 			} else if sRange == "c" {
 				pktSizes = append(pktSizes, CheckMark)

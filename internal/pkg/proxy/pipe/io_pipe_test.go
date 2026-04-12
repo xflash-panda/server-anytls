@@ -15,7 +15,8 @@ import (
 func newTestPipe(maxBuf int) (*PipeReader, *PipeWriter) {
 	p := &pipe{
 		done:          make(chan struct{}),
-		notify:        make(chan struct{}),
+		dataReady:     make(chan struct{}, 1),
+		spaceReady:    make(chan struct{}, 1),
 		readDeadline:  MakePipeDeadline(),
 		writeDeadline: MakePipeDeadline(),
 		maxBuf:        maxBuf,
