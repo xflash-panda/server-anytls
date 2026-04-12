@@ -193,7 +193,7 @@ func (s *Session) recvLoop() error {
 						stream, ok := s.streams[sid]
 						s.streamLock.RUnlock()
 						if ok {
-							stream.pipeW.Write(readBuf)
+							_, _ = stream.pipeW.Write(readBuf)
 						}
 					} else {
 						return err
@@ -398,8 +398,8 @@ func (s *Session) writeControlFrame(frame frame) (int, error) {
 func (s *Session) writeConnWithDeadline(b []byte, deadline time.Duration) (n int, err error) {
 	s.connLock.Lock()
 	defer s.connLock.Unlock()
-	s.conn.SetWriteDeadline(time.Now().Add(deadline))
-	defer s.conn.SetWriteDeadline(time.Time{})
+	_ = s.conn.SetWriteDeadline(time.Now().Add(deadline))
+	defer func() { _ = s.conn.SetWriteDeadline(time.Time{}) }()
 	return s.writeConnLocked(b)
 }
 

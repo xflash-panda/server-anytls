@@ -276,14 +276,6 @@ type TrafficManager struct {
 	store sync.Map
 }
 
-func (tm *TrafficManager) load(userId int) *TrafficItem {
-	if item, ok := tm.store.Load(userId); !ok {
-		return nil
-	} else {
-		return item.(*TrafficItem)
-	}
-}
-
 func (tm *TrafficManager) drainUserTraffics() []*api.UserTraffic {
 	userTraffics := make([]*api.UserTraffic, 0)
 	tm.store.Range(func(key, value any) bool {
