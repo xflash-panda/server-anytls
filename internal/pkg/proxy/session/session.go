@@ -80,9 +80,13 @@ func (s *Session) Run() {
 		return
 	}
 
+	paddingF := s.padding.Load()
+	if paddingF == nil {
+		return
+	}
 	settings := util.StringMap{
 		"v":           "2",
-		"padding-md5": s.padding.Load().Md5,
+		"padding-md5": paddingF.Md5,
 	}
 
 	f := newFrame(cmdSettings, 0)
@@ -268,6 +272,10 @@ func (s *Session) recvLoop() error {
 						receivedSettingsFromClient = true
 						m := util.StringMapFromBytes(buffer)
 						paddingF := s.padding.Load()
+						if paddingF == nil {
+							_ = buf.Put(buffer)
+							return nil
+						}
 						if m["padding-md5"] != paddingF.Md5 {
 							f := newFrame(cmdUpdatePaddingScheme, 0)
 							f.data = paddingF.RawScheme
@@ -359,21 +367,28 @@ func (s *Session) streamClosed(sid uint32) error {
 	return err
 }
 
+// maxFramePayload is the largest data payload per frame, chosen so that
+// chunkLen + headerOverHeadSize <= 65536, keeping frames within the pool.
+const maxFramePayload = 65536 - headerOverHeadSize
+
 func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
-	dataLen := len(data)
+	total := len(data)
+	for len(data) > 0 {
+		chunkLen := min(len(data), maxFramePayload)
 
-	buffer := buf.NewSize(dataLen + headerOverHeadSize)
-	_ = buffer.WriteByte(cmdPSH)
-	binary.BigEndian.PutUint32(buffer.Extend(4), sid)
-	binary.BigEndian.PutUint16(buffer.Extend(2), uint16(dataLen))
-	_, _ = buffer.Write(data)
-	_, err := s.writeConn(buffer.Bytes())
-	buffer.Release()
-	if err != nil {
-		return 0, err
+		buffer := buf.NewSize(chunkLen + headerOverHeadSize)
+		_ = buffer.WriteByte(cmdPSH)
+		binary.BigEndian.PutUint32(buffer.Extend(4), sid)
+		binary.BigEndian.PutUint16(buffer.Extend(2), uint16(chunkLen))
+		_, _ = buffer.Write(data[:chunkLen])
+		_, err := s.writeConn(buffer.Bytes())
+		buffer.Release()
+		if err != nil {
+			return 0, err
+		}
+		data = data[chunkLen:]
 	}
-
-	return dataLen, nil
+	return total, nil
 }
 
 func (s *Session) writeControlFrame(frame frame) (int, error) {
@@ -421,6 +436,10 @@ func (s *Session) writeConnLocked(b []byte) (n int, err error) {
 	if s.sendPadding {
 		pkt := s.pktCounter.Add(1)
 		paddingF := s.padding.Load()
+		if paddingF == nil {
+			s.sendPadding = false
+			return s.conn.Write(b)
+		}
 		if pkt < paddingF.Stop {
 			payloadLen := len(b)
 			pktSizes := paddingF.GenerateRecordPayloadSizes(pkt)
