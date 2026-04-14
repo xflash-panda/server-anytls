@@ -34,6 +34,13 @@ jobs:
         with:
           go-version: '1.25'
 
+      - name: Configure private modules
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          go env -w GOPRIVATE=github.com/xflash-panda/*
+          git config --global url."https://${GH_PAT}@github.com/xflash-panda/".insteadOf "https://github.com/xflash-panda/"
+
       - name: Download dependencies
         run: go mod download
 
@@ -53,6 +60,13 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+
+      - name: Configure private modules
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          go env -w GOPRIVATE=github.com/xflash-panda/*
+          git config --global url."https://${GH_PAT}@github.com/xflash-panda/".insteadOf "https://github.com/xflash-panda/"
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
