@@ -22,7 +22,7 @@ type Server struct {
 	// runtime objects
 	tlsConfig    *tls.Config
 	anyTLSConfig *api.AnyTLSConfig
-	listener     net.Listener
+	listeners    []net.Listener
 	userService  *service.UsersService
 	apiClient    *api.Client
 	registerID   string
@@ -223,15 +223,16 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to build outbound: %w", err)
 	}
 
-	addr := fmt.Sprintf(":%d", s.anyTLSConfig.ServerPort)
-	listener, err := net.Listen("tcp", addr)
+	listeners, err := listenDualStack(s.anyTLSConfig.ServerPort)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
-	s.listener = listener
-	logrus.WithFields(logrus.Fields{
-		"addr": addr,
-	}).Info("Server listening on TCP")
+	s.listeners = listeners
+	for _, ln := range listeners {
+		logrus.WithFields(logrus.Fields{
+			"addr": ln.Addr().String(),
+		}).Info("Server listening")
+	}
 	if len(s.anyTLSConfig.PaddingRules) > 0 {
 		paddingRules := []byte(s.anyTLSConfig.PaddingRules)
 		if padding.UpdatePaddingScheme(paddingRules) {
@@ -245,17 +246,50 @@ func (s *Server) Start() error {
 	}
 	logrus.Infoln("user service started")
 	logrus.Infoln("start accepting connections")
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil
+
+	var wg sync.WaitGroup
+	for _, ln := range s.listeners {
+		wg.Add(1)
+		go func(l net.Listener) {
+			defer wg.Done()
+			for {
+				conn, err := l.Accept()
+				if err != nil {
+					if errors.Is(err, net.ErrClosed) {
+						return
+					}
+					logrus.WithError(err).Error("failed to accept connection")
+					continue
+				}
+				go handleTcpConnection(s.ctx, conn, s)
 			}
-			logrus.WithError(err).Error("failed to accept connection")
+		}(ln)
+	}
+	wg.Wait()
+	return nil
+}
+
+func listenDualStack(port int) ([]net.Listener, error) {
+	networks := []struct {
+		net  string
+		addr string
+	}{
+		{"tcp4", fmt.Sprintf("0.0.0.0:%d", port)},
+		{"tcp6", fmt.Sprintf("[::]:%d", port)},
+	}
+	var listeners []net.Listener
+	for _, n := range networks {
+		ln, err := net.Listen(n.net, n.addr)
+		if err != nil {
+			logrus.WithError(err).Warnf("failed to listen on %s %s", n.net, n.addr)
 			continue
 		}
-		go handleTcpConnection(s.ctx, conn, s)
+		listeners = append(listeners, ln)
 	}
+	if len(listeners) == 0 {
+		return nil, fmt.Errorf("failed to listen on any address for port %d", port)
+	}
+	return listeners, nil
 }
 
 func (s *Server) Close() error {
@@ -276,9 +310,9 @@ func (s *Server) Close() error {
 		}
 		// 取消上下文，停止新的处理
 		s.cancel()
-		// 关闭监听器，忽略重复关闭错误
-		if s.listener != nil {
-			if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		// 关闭所有监听器，忽略重复关闭错误
+		for _, ln := range s.listeners {
+			if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 				s.closeErr = fmt.Errorf("failed to close listener: %w", err)
 			}
 		}
