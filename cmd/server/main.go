@@ -21,7 +21,7 @@ import (
 
 const (
 	Name      = "anytls-node"
-	Version   = "0.2.22"
+	Version   = "0.2.23"
 	CopyRight = "XFLASH-PANDA@2021"
 )
 
@@ -130,6 +130,15 @@ func main() {
 				DefaultText: "/var/lib/anytls-node",
 				Required:    false,
 				Destination: &dataDir,
+			},
+			&cli.StringFlag{
+				Name:        "api_ip_version",
+				Usage:       "IP version for panel API requests: v4, v6, auto",
+				EnvVars:     []string{"X_PANDA_ANYTLS_API_IP_VERSION", "API_IP_VERSION"},
+				Value:       "v4",
+				DefaultText: "v4",
+				Required:    false,
+				Destination: &apiConfig.IPVersion,
 			},
 			&cli.BoolFlag{
 				Name:        "refresh_geodata",
