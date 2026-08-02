@@ -32,3 +32,7 @@ cmd/server/geosite.dat
 .claude/
 CLAUDE.md
 docs/plans/
+
+# Local agent design artifacts
+/docs/superpowers/
+/.superpowers/
