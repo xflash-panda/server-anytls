@@ -34,3 +34,7 @@ cmd/server-agent/
 .claude/
 CLAUDE.md
 docs/plans/
+
+# Local agent design artifacts
+/docs/superpowers/
+/.superpowers/
